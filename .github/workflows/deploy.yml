@@ -1,0 +1,58 @@
+name: Deploy to Cloudflare Pages
+
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+# Allow only one concurrent deploy per target; let an in-progress run finish
+# before starting the next, so a fresh push always ends up live. Production and
+# staging use separate groups so a staging deploy never blocks production.
+concurrency:
+  group: deploy-cloudflare-pages-${{ github.ref_name == 'main' && 'prod' || 'preview' }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4 # version read from package.json "packageManager"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build static export
+        run: pnpm build
+
+      # main → production deployment. Any other branch (develop on push, or any
+      # branch via workflow_dispatch) → the fixed "develop" staging slot, served
+      # at develop.<project>.pages.dev. $GITHUB_REF_NAME is the short branch name
+      # for both push and workflow_dispatch.
+      - name: Determine Cloudflare branch label
+        id: cf
+        run: |
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            echo "branch=main" >> "$GITHUB_OUTPUT"
+          else
+            echo "branch=develop" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy out --project-name=${{ secrets.CLOUDFLARE_PROJECT_NAME }} --branch=${{ steps.cf.outputs.branch }}
