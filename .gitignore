@@ -1,0 +1,9 @@
+# Local Claude Code settings (machine/user specific — keep out of the shared repo)
+.claude/settings.local.json
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

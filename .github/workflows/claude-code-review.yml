@@ -1,0 +1,29 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    # Optional: Only run on specific file changes
+    # paths:
+    #   - "src/**/*.ts"
+    #   - "src/**/*.tsx"
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      id-token: write
+
+    steps:
+      - name: claude-code-review-with-model
+        uses: JaimeMartinSoler/github-actions/actions/claude-code-review-with-model@main
+        with:
+          # --- IMPLEMENTER ACTION SHOULD ONLY MODIFY THESE PARAMETERS: ---
+          # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }} # (provide either this or claude_code_oauth_token)
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }} # (provide either this or anthropic_api_key)
+          claude_model: 'opus' # (default: empty, get from event body text like 'claude model opus/sonnet/haiku', but review has no event body for this, so provide this parameter)
+          skip_if_bot: 'true' # (default: 'true')
+          verify_author_write: 'true' # (default: 'true')
