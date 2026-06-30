@@ -1,0 +1,19 @@
+# Security headers for Cloudflare Pages. The key privacy line is `connect-src`:
+# the browser may only talk to our OWN origin ('self') — which includes the
+# same-origin Worker API bound at `/api/*` — and to Cloudflare Web Analytics.
+# Nothing else, and never plaintext or the password.
+#
+# If you instead host the Worker API on `*.workers.dev` (cross-origin from
+# Pages), add that exact origin to `connect-src` here.
+#
+# 'wasm-unsafe-eval' is required to compile the Argon2id hash-wasm module in the
+# browser. 'unsafe-inline' for script/style is required by Next.js's static
+# runtime. Neither weakens the user-data guarantee — that is enforced by
+# `connect-src` allowing only 'self' plus the anonymous-analytics origin.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  X-Frame-Options: DENY
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
