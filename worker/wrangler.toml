@@ -1,0 +1,38 @@
+name = "clipboard-sharing-online-api"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+# Required by @cloudflare/vitest-pool-workers; harmless in production.
+compatibility_flags = ["nodejs_compat"]
+
+# Same-origin API. Bind this Worker to `/api/*` on the Pages custom domain so the
+# browser talks to it WITHOUT CORS. Uncomment and set your zone at deploy time:
+#
+# [[routes]]
+# pattern = "clipboard-sharing.online/api/*"
+# zone_name = "clipboard-sharing.online"
+#
+# If you instead host the API on `*.workers.dev`, it is cross-origin from Pages:
+# add a strict CORS allowlist in src/index.ts for the Pages origin only.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "clipboard-sharing"
+# Replace with the id printed by `wrangler d1 create clipboard-sharing`.
+# Ignored by local dev / tests (miniflare provisions a local D1 automatically).
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+# Cleanup sweep for abandoned/expired rooms, members, and blobs.
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+# Default room TTL (10 min) and the ceiling a client may request (1 hour).
+TTL_DEFAULT_MS = "600000"
+TTL_MAX_MS = "3600000"
+# Reject ciphertext payloads larger than 256 KB (text only, v1).
+MAX_CIPHERTEXT_BYTES = "262144"
+# In-Worker per-IP fixed-window rate limit (defense-in-depth; a Cloudflare Rate
+# Limiting rule can be layered on top at the edge).
+RATE_LIMIT_MAX = "60"
+RATE_LIMIT_WINDOW_MS = "60000"
