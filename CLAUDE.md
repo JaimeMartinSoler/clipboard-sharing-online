@@ -115,6 +115,12 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
 ## Deploy
 - **Frontend** → Cloudflare Pages via `.github/workflows/deploy.yml` (`main` =
   prod, other branches = the `develop` staging slot). Build output is `./out`.
-- **Worker** → Wrangler (`wrangler deploy`); add a deploy step/workflow and run
-  D1 migrations as part of release. The Worker holds the `CLOUDFLARE`/D1 bindings;
-  the frontend holds none — it has no secrets to leak.
+- **Worker** → Wrangler via `.github/workflows/deploy-worker.yml` (`main` = prod
+  on the top-level config; `develop` = an isolated staging Worker
+  `clipboard-sharing-online-api-develop` with its own D1, via the `[env.develop]`
+  block in `worker/wrangler.toml` and `wrangler deploy --env develop`). The
+  workflow applies D1 migrations (`--remote`) before deploying. Each environment
+  serves `/api/*` same-origin via a Worker route on its own custom domain
+  (`clipboard-sharing-online.com`, `develop.clipboard-sharing-online.com`). The
+  Worker holds the `CLOUDFLARE`/D1 bindings; the frontend holds none — it has no
+  secrets to leak.

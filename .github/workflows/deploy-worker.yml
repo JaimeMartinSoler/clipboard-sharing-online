@@ -38,10 +38,17 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # Run migrations before deploying so the live schema matches the new code.
-      # Configure separate D1 databases / wrangler environments if you want
-      # staging and production to be isolated.
+      # `develop` targets an isolated staging Worker + D1 (`--env develop`);
+      # `main` targets the top-level production config. See worker/wrangler.toml.
       - name: Apply D1 migrations (remote)
-        run: pnpm --filter worker exec wrangler d1 migrations apply clipboard-sharing --remote
+        run: >
+          pnpm --filter worker exec wrangler d1 migrations apply
+          ${{ github.ref_name == 'develop'
+              && 'clipboard-sharing-online-develop --env develop'
+              || 'clipboard-sharing-online' }}
+          --remote
 
       - name: Deploy Worker
-        run: pnpm --filter worker exec wrangler deploy
+        run: >
+          pnpm --filter worker exec wrangler deploy
+          ${{ github.ref_name == 'develop' && '--env develop' || '' }}

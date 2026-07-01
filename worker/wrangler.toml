@@ -6,20 +6,20 @@ compatibility_flags = ["nodejs_compat"]
 
 # Same-origin API. Bind this Worker to `/api/*` on the Pages custom domain so the
 # browser talks to it WITHOUT CORS. Uncomment and set your zone at deploy time:
-#
-# [[routes]]
-# pattern = "clipboard-sharing.online/api/*"
-# zone_name = "clipboard-sharing.online"
-#
+
+[[routes]]
+pattern = "clipboard-sharing-online.com/api/*"
+zone_name = "clipboard-sharing-online.com"
+
 # If you instead host the API on `*.workers.dev`, it is cross-origin from Pages:
 # add a strict CORS allowlist in src/index.ts for the Pages origin only.
 
 [[d1_databases]]
 binding = "DB"
-database_name = "clipboard-sharing"
-# Replace with the id printed by `wrangler d1 create clipboard-sharing`.
+database_name = "clipboard-sharing-online"
+# Replace with the id printed by `wrangler d1 create clipboard-sharing-online`.
 # Ignored by local dev / tests (miniflare provisions a local D1 automatically).
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "ab8b9ce2-9237-4014-a923-4c690ef1e1f2"
 migrations_dir = "migrations"
 
 # Cleanup sweep for abandoned/expired rooms, members, and blobs.
@@ -34,5 +34,43 @@ TTL_MAX_MS = "3600000"
 MAX_CIPHERTEXT_BYTES = "262144"
 # In-Worker per-IP fixed-window rate limit (defense-in-depth; a Cloudflare Rate
 # Limiting rule can be layered on top at the edge).
+RATE_LIMIT_MAX = "60"
+RATE_LIMIT_WINDOW_MS = "60000"
+
+# ---------------------------------------------------------------------------
+# `develop` environment — staging slot deployed from the `develop` branch.
+#   Deploy:      wrangler deploy --env develop
+#   Migrations:  wrangler d1 migrations apply clipboard-sharing-online-develop \
+#                  --env develop --remote
+# It is isolated from production: its own Worker name
+# (`clipboard-sharing-online-api-develop`) and its own D1 database, so staging
+# tests never touch prod data. Named-environment config is NOT inherited from
+# the top level, so d1_databases / triggers / vars are repeated here on purpose.
+# ---------------------------------------------------------------------------
+[env.develop]
+name = "clipboard-sharing-online-api-develop"
+
+# Same-origin staging: intercept /api/* on the develop subdomain. This host must
+# be a proxied hostname in the zone — attach it as the Pages custom domain for
+# the develop branch. `routes` is non-inheritable, so it is declared here too.
+[[env.develop.routes]]
+pattern = "develop.clipboard-sharing-online.com/api/*"
+zone_name = "clipboard-sharing-online.com"
+
+[[env.develop.d1_databases]]
+binding = "DB"
+database_name = "clipboard-sharing-online-develop"
+# Replace with the id from:
+#   wrangler d1 create clipboard-sharing-online-develop
+database_id = "9ec2a81a-25e7-461e-81dc-602376623ba3"
+migrations_dir = "migrations"
+
+[env.develop.triggers]
+crons = ["*/5 * * * *"]
+
+[env.develop.vars]
+TTL_DEFAULT_MS = "600000"
+TTL_MAX_MS = "3600000"
+MAX_CIPHERTEXT_BYTES = "262144"
 RATE_LIMIT_MAX = "60"
 RATE_LIMIT_WINDOW_MS = "60000"
