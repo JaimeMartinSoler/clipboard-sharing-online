@@ -177,9 +177,24 @@ Shared by crypto and API-client modules; UI renders the error in the
   sweep deleting a room's `members` alongside it.
 
 ## Deployment
+Two fully decoupled environments, each same-origin on one host (Worker route wins
+for `/api/*`, Pages serves the rest):
+
+| Env | Host | Frontend | Worker | D1 |
+| --- | --- | --- | --- | --- |
+| prod | `clipboard-sharing-online.com` | Pages `main` | `clipboard-sharing-online-api` | `clipboard-sharing-online` |
+| develop | `develop.clipboard-sharing-online.com` | Pages `develop` | `clipboard-sharing-online-api-develop` | `clipboard-sharing-online-develop` |
+
 - **Frontend:** `.github/workflows/deploy.yml` → Cloudflare Pages (`main` = prod,
-  others = `develop` staging slot), output `./out`.
-- **Worker:** `wrangler deploy` with the D1 binding + cron configured in
-  `wrangler.toml`; run `wrangler d1 migrations apply` on release. Add a worker
-  deploy step/workflow and worker test/lint to CI. All secrets/bindings live on
-  the Worker; the frontend ships none.
+  other branches = the `develop` staging slot), output `./out`.
+- **Worker:** `.github/workflows/deploy-worker.yml` runs `wrangler d1 migrations
+  apply --remote` then `wrangler deploy`. `main` uses the top-level `wrangler.toml`
+  (prod Worker + D1 + route); `develop` uses `--env develop`, an isolated staging
+  Worker + D1 + route declared under `[env.develop]`. Named-environment config is
+  **not** inherited, so `d1_databases`/`triggers`/`vars`/`routes` are repeated
+  there on purpose.
+- **Same-origin hosts:** each host is a Pages custom domain plus a Worker `/api/*`
+  route on that host. The develop custom domain serves the `develop` **branch**
+  (not `main`) via a proxied `CNAME` to the branch's `*.pages.dev` alias — see the
+  step-by-step recipe and troubleshooting (`405`/`522`) in the repo `README.md`.
+- All secrets/bindings live on the Worker; the frontend ships none.
