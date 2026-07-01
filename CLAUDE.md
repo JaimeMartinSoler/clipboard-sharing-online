@@ -100,7 +100,8 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
 - Worker: `pnpm --filter worker dev` (local Wrangler + D1), `--filter worker test`,
   `--filter worker deploy`. Apply migrations with
   `pnpm --filter worker exec wrangler d1 migrations apply`.
-- Aggregate: `pnpm -r test` runs both packages' suites.
+- Aggregate: `pnpm -r --include-workspace-root test` runs both packages' suites
+  (plain `pnpm -r test` skips the root frontend package and runs only `worker`).
 - Native build scripts (esbuild, sharp, workerd, …) must be allowlisted in
   `pnpm-workspace.yaml` (`onlyBuiltDependencies`/`allowBuilds`) or pnpm blocks
   them and install fails.

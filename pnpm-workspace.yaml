@@ -1,0 +1,20 @@
+# The Next.js frontend lives at the repo root; the Cloudflare Worker API is a
+# sibling workspace package.
+packages:
+  - "worker"
+
+# Native build scripts must be allowlisted or pnpm blocks them and install fails.
+# esbuild backs Vitest; workerd is Wrangler's runtime (used by the Worker dev
+# server and @cloudflare/vitest-pool-workers). sharp / unrs-resolver arrive as
+# transitive deps (Next image, the eslint oxc resolver) — allowlisted to match
+# office-tools-online and keep `next lint` working.
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
+  workerd: true
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - unrs-resolver
+  - workerd

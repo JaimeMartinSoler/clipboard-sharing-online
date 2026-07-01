@@ -33,11 +33,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: pnpm test
+      - name: pnpm test (frontend)
         run: pnpm test
 
-      - name: pnpm lint
+      - name: pnpm lint (frontend)
         run: pnpm lint
 
-      - name: pnpm build
+      - name: pnpm build (frontend)
         run: pnpm build
+
+      - name: worker test (D1 + vitest-pool-workers)
+        run: pnpm --filter worker test
+
+      - name: worker typecheck
+        run: pnpm --filter worker lint
