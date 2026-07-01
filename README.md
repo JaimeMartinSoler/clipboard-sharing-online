@@ -105,7 +105,7 @@ pnpm lint
 pnpm test         # crypto + api + password-strength
 
 # Worker API (local Wrangler + a simulated D1)
-pnpm --filter worker exec wrangler d1 migrations apply clipboard-sharing --local
+pnpm --filter worker exec wrangler d1 migrations apply clipboard-sharing-online --local
 pnpm --filter worker dev          # http://127.0.0.1:8787
 pnpm --filter worker test         # vitest-pool-workers against a local D1
 pnpm --filter worker lint         # tsc --noEmit
@@ -124,20 +124,39 @@ origin.
 ### One-time Cloudflare setup
 
 ```bash
-# Create the D1 database and copy its id into worker/wrangler.toml
-pnpm --filter worker exec wrangler d1 create clipboard-sharing
+# Create the production D1 database and copy its id into worker/wrangler.toml
+pnpm --filter worker exec wrangler d1 create clipboard-sharing-online
+
+# Create the develop (staging) D1 and copy its id into the [env.develop] block
+pnpm --filter worker exec wrangler d1 create clipboard-sharing-online-develop
 ```
 
-Then set these GitHub secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`,
-`CLOUDFLARE_PROJECT_NAME` (Pages project). Bind the Worker route to `/api/*` on
-the Pages custom domain so the API is same-origin.
+Then set these GitHub secrets: `CLOUDFLARE_API_TOKEN` (needs Workers Scripts,
+D1, Workers Routes, and Pages edit scopes), `CLOUDFLARE_ACCOUNT_ID`, and
+`CLOUDFLARE_PROJECT_NAME` (Pages project).
+
+Same-origin wiring — each environment serves the frontend and the `/api/*`
+Worker on **one** host (the Worker route takes precedence over Pages for `/api/*`,
+the rest is the static export):
+
+| Environment | Host | Serves |
+| --- | --- | --- |
+| production | `clipboard-sharing-online.com` | Pages `main` + prod Worker route |
+| develop | `develop.clipboard-sharing-online.com` | Pages `develop` branch + `[env.develop]` Worker route |
+
+Attach both as Pages custom domains (the develop subdomain must point at the
+`develop` branch) so the Worker routes have a matching proxied host. The routes
+live in [`worker/wrangler.toml`](worker/wrangler.toml).
 
 ### CI workflows
 
 - **Frontend → Cloudflare Pages** ([`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)):
   `main` = production, other branches = the `develop` staging slot. Output `./out`.
 - **Worker → Wrangler** ([`.github/workflows/deploy-worker.yml`](.github/workflows/deploy-worker.yml)):
-  applies D1 migrations (`--remote`) then `wrangler deploy`.
+  applies D1 migrations (`--remote`) then `wrangler deploy`. `main` deploys the
+  production Worker; `develop` deploys an isolated staging Worker
+  (`clipboard-sharing-online-api-develop`) with its own D1 via `--env develop`
+  (see the `[env.develop]` block in [`worker/wrangler.toml`](worker/wrangler.toml)).
 - **CI** ([`.github/workflows/verify.yml`](.github/workflows/verify.yml)): runs
   frontend test/lint/build and the Worker test/typecheck on every PR.
 

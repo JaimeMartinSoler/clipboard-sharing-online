@@ -10,7 +10,7 @@
     "test:watch": "vitest",
     "lint": "tsc --noEmit",
     "deploy": "wrangler deploy",
-    "migrations:apply": "wrangler d1 migrations apply clipboard-sharing"
+    "migrations:apply": "wrangler d1 migrations apply clipboard-sharing-online"
   },
   "dependencies": {
     "hono": "^4.6.0"
