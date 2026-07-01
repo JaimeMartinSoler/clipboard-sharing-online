@@ -45,9 +45,7 @@ jobs:
       - name: Apply D1 migrations (remote)
         run: >
           pnpm --filter worker exec wrangler d1 migrations apply
-          ${{ github.ref_name == 'main'
-              && 'clipboard-sharing-online'
-              || 'clipboard-sharing-online-develop --env develop' }}
+          ${{ github.ref_name == 'main' && 'clipboard-sharing-online' || 'clipboard-sharing-online-develop --env develop' }}
           --remote
 
       - name: Deploy Worker
