@@ -1,0 +1,185 @@
+# Architecture
+
+## Overview
+```
+┌─────────────────────────────┐        HTTPS, same-origin        ┌──────────────────────────┐
+│  Browser (Cloudflare Pages) │  ───────────────────────────▶   │  Cloudflare Worker (Hono) │
+│                             │   POST /api/rooms                │                          │
+│  • password → KDF → keys    │   { roomId, capacity }           │  • atomic slot allocate  │
+│  • AES-GCM encrypt/decrypt  │  ◀── { token, joined, sealed }   │  • seal when full        │
+│  • Join → token (in memory) │                                  │  • validate + size cap   │
+│  • Push / Pull buttons      │   POST/GET /api/clipboard        │  • rate limit            │
+│    (Authorization: Bearer)  │   Bearer <token>                 │  • D1 upsert / select    │
+│  • plaintext NEVER leaves   │  ◀── { ciphertext, iv, exp }     │  • lazy-expire + cron    │
+└─────────────────────────────┘                                  └────────────┬─────────────┘
+                                                                               │
+                                                                       ┌───────▼─────────┐
+                                                                       │  Cloudflare D1  │
+                                                                       │ rooms + members │
+                                                                       └─────────────────┘
+```
+The Worker and D1 see **only** opaque ids, ciphertext, and opaque membership
+token hashes. All cryptography happens in the browser. The terminal cap is an
+access-control layer *on top of* the encryption (see `docs/SECURITY.md`), never
+a substitute for it.
+
+## Repository layout (pnpm monorepo)
+```
+.                          # package "web": Next.js 15 static-export frontend
+├─ src/
+│  ├─ app/                 # App Router: page.tsx (the tool), privacy/, layout.tsx
+│  ├─ components/          # shared UI (StatusBanner, Hint, buttons, editor…)
+│  │  └─ ui/               # shadcn-style primitives
+│  └─ lib/
+│     ├─ result.ts         # Result<T> type
+│     ├─ crypto.ts         # KDF + AES-GCM (pure, WebCrypto + hash-wasm) + tests
+│     └─ api.ts            # typed fetch client for the Worker + tests
+├─ next.config.mjs         # output:'export', images.unoptimized, hash workaround
+├─ docs/                   # SPEC, ARCHITECTURE, SECURITY, IMPLEMENTATION_PROMPT
+├─ pnpm-workspace.yaml     # packages: ['worker']; onlyBuiltDependencies/allowBuilds
+└─ worker/                 # package "worker": Cloudflare Worker API
+   ├─ src/index.ts         # Hono app + routes
+   ├─ src/db.ts            # D1 queries
+   ├─ migrations/0001_init.sql
+   ├─ wrangler.toml        # D1 binding, route, cron trigger, vars
+   └─ test/                # @cloudflare/vitest-pool-workers tests
+```
+The Next app stays at the repo root so the existing
+`.github/workflows/deploy.yml` (build → `./out` → Pages) and `verify.yml`
+keep working unchanged. The Worker is a sibling workspace package.
+
+## Cryptography (browser only)
+All values below are computed with WebCrypto + `hash-wasm` (Argon2id) and never
+transmitted except where noted.
+
+1. **Master key material** — `Argon2id(password, salt = APP_SALT, params)` → 32
+   bytes. `APP_SALT` is a fixed, public, app-wide constant. There is no exchanged
+   per-user salt because the only shared secret is the password and derivation
+   must be **deterministic** so two terminals independently land on the same room
+   and key. The cost of that choice is analysed in `docs/SECURITY.md` (Argon2id
+   memory-hardness + short TTL are the mitigations).
+2. **Split via HKDF** of the master material into:
+   - `room_id = base64url(HKDF-Expand(master, info="cso:room-id", 16 bytes))` —
+     **the only key-derived value sent to the server**; it is opaque and reveals
+     nothing about the password or content.
+   - `contentKey = HKDF-Expand(master, info="cso:content-key", 32 bytes)` →
+     imported as a non-extractable AES-GCM-256 `CryptoKey`. **Never sent.**
+3. **Encrypt (Push)** — fresh random 96-bit `iv`; `ciphertext =
+   AES-GCM-encrypt(contentKey, iv, utf8(plaintext))` (GCM tag included). Send
+   `{ roomId, ciphertext, iv }` (ciphertext/iv base64url). Plaintext never sent.
+4. **Decrypt (Pull)** — `GET /api/clipboard/:roomId` → `{ ciphertext, iv }`;
+   `AES-GCM-decrypt(contentKey, iv, ciphertext)`. A wrong password produces a
+   different `contentKey` and the GCM tag check fails → surfaced as "couldn't
+   decrypt", indistinguishable from "wrong password".
+
+`src/lib/crypto.ts` exposes pure functions: `deriveKeys(password) →
+{roomId, contentKey}`, `encrypt(contentKey, plaintext) → {ciphertext, iv}`,
+`decrypt(contentKey, {ciphertext, iv}) → Result<string>`. No React/DOM imports.
+
+## API (Worker, Hono)
+Same-origin under the Pages custom domain via a Worker route on `/api/*` (no
+CORS). If deployed on `*.workers.dev` instead, add a strict CORS allowlist for
+the Pages origin.
+
+| Method & path                | Body / params · auth       | Behaviour |
+| ---------------------------- | -------------------------- | --------- |
+| `POST /api/rooms`            | `{ roomId, capacity? }`    | Join/create. Atomically create the room (if absent) with `capacity` (default 2, clamped 1–10) or join an existing one; allocate a slot only while `members < capacity`. Returns `{ token, joined, capacity, sealed }`. `409` once sealed; `400` on bad `capacity`. |
+| `POST /api/clipboard`        | `{ roomId, ciphertext, iv }` · Bearer token | Validate token↔room, shape, and size cap; rate-limit; `INSERT OR REPLACE` blob with `expires_at=now+TTL`. Returns `{ ok, expiresAt }`. `401` without a valid token. |
+| `GET /api/clipboard/:roomId` | path `roomId` · Bearer token | Validate token↔room. Select where `room_id=? AND expires_at>now`. If expired, lazy-delete and return 404. Returns `{ ciphertext, iv, expiresAt }` or 404. `401` without a valid token. |
+| `DELETE /api/clipboard/:roomId` | path `roomId` · Bearer token | Clear the blob. Always returns 204 (no existence oracle). `401` without a valid token. |
+
+Cross-cutting: max ciphertext size (reject oversized with 413), per-IP rate
+limiting (Cloudflare Rate Limiting rule and/or in-Worker counter), JSON-shape
+validation, and uniform error responses that don't leak room existence.
+
+### Membership & sealing
+- **Atomic slot allocation.** `POST /api/rooms` runs inside a D1 transaction so a
+  slot is granted only when `COUNT(members WHERE room_id) < capacity`; two
+  terminals racing for the last slot cannot both win (no over-seal, no TOCTOU).
+  The first caller for a fresh `room_id` creates the room and sets `capacity`.
+- **Tokens are bearer credentials.** On join the Worker generates a random,
+  high-entropy token, stores only its **SHA-256 hash** in `members`, and returns
+  the raw token once. The client keeps it **in memory only** (no localStorage —
+  strict policy). Every clipboard op must present it; the Worker authorizes by
+  hashing the presented token and matching a `members` row for that room.
+- **Sealing is permanent for the room instance.** Once `members == capacity` the
+  room is sealed; further `POST /api/rooms` returns `409`. Sealing is revealed
+  only to a caller who already knows the password (they had to derive `room_id`),
+  so it is not an existence oracle for outsiders.
+- **Expiry clears everything together.** `rooms`, its `members`, and the blob
+  share one `expires_at`; lazy delete on read and the cron sweep remove all of
+  them, so a sealed room — and every membership in it — vanishes at TTL. Reusing
+  the password afterwards yields a fresh, unsealed room.
+- **Content stays E2E-encrypted regardless.** `capacity` is plaintext metadata,
+  not a secret, and membership never touches the content key.
+
+## Data model (Cloudflare D1)
+```sql
+-- worker/migrations/0001_init.sql
+CREATE TABLE IF NOT EXISTS rooms (
+  room_id    TEXT    PRIMARY KEY,   -- opaque, client-derived (see crypto)
+  capacity   INTEGER NOT NULL,      -- max terminals; default 2, clamped 1–10
+  ciphertext TEXT,                  -- base64url AES-GCM ciphertext (nullable until first push)
+  iv         TEXT,                  -- base64url 96-bit nonce (nullable until first push)
+  created_at INTEGER NOT NULL,      -- epoch ms
+  expires_at INTEGER NOT NULL       -- epoch ms; row is dead once now > this
+);
+CREATE TABLE IF NOT EXISTS members (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  room_id    TEXT    NOT NULL,      -- FK → rooms.room_id
+  token_hash TEXT    NOT NULL,      -- SHA-256 of the bearer membership token
+  joined_at  INTEGER NOT NULL       -- epoch ms
+);
+CREATE INDEX IF NOT EXISTS idx_members_room ON members(room_id);
+CREATE INDEX IF NOT EXISTS idx_rooms_expires ON rooms(expires_at);
+```
+One `rooms` row per room (latest clipboard only) plus one `members` row per
+joined terminal. A room is **sealed** when
+`COUNT(members WHERE room_id) >= rooms.capacity`. `ciphertext`/`iv` are null
+between joining and the first push. D1's primary gives strongly consistent
+reads, so a Push — and a freshly allocated slot — is visible to an immediate
+follow-up request, the property KV could not guarantee.
+
+## Expiry
+- **Lazy:** every read filters on `expires_at > now` and deletes the room (and
+  its `members`) if past.
+- **Sweep:** a Wrangler **cron trigger** (e.g. every few minutes) runs
+  `DELETE FROM rooms WHERE expires_at <= now` and the matching
+  `DELETE FROM members WHERE room_id NOT IN (SELECT room_id FROM rooms)` so
+  abandoned rooms and their memberships don't accrete. A sealed room's seal and
+  slots disappear with it at TTL.
+
+## Frontend (static export)
+- `next.config.mjs`: `output: 'export'`, `images.unoptimized: true`, and the
+  webpack `hashFunction` workaround (see CLAUDE.md). The static site is just
+  assets + client JS that calls the Worker; there is no SSR of user data and no
+  API route in the Next app.
+- Strict CSP via Pages `public/_headers`: `default-src 'self'`; `connect-src`
+  limited to `'self'` (same-origin API) + the Cloudflare Web Analytics origin;
+  no other egress.
+
+## Result type
+```ts
+type Result<T> = { ok: true; value: T } | { ok: false; error: string };
+```
+Shared by crypto and API-client modules; UI renders the error in the
+`StatusBanner` instead of throwing.
+
+## Testing
+- **Frontend (Vitest):** crypto round-trip, wrong-password-fails, determinism
+  (`deriveKeys` is stable for a password and differs across passwords), base64url
+  edge cases, unicode, and size-limit handling in the API client.
+- **Worker (`@cloudflare/vitest-pool-workers`):** upsert→get round-trip against a
+  local D1, 404 on missing/expired, size-cap rejection, DELETE idempotency, and
+  the cron sweep removing expired rows. Plus membership: atomic cap enforcement
+  (concurrent joins never over-seal past `capacity`), `409` once sealed, `400` on
+  bad `capacity`, `401` on clipboard ops without a valid Bearer token, and the
+  sweep deleting a room's `members` alongside it.
+
+## Deployment
+- **Frontend:** `.github/workflows/deploy.yml` → Cloudflare Pages (`main` = prod,
+  others = `develop` staging slot), output `./out`.
+- **Worker:** `wrangler deploy` with the D1 binding + cron configured in
+  `wrangler.toml`; run `wrangler d1 migrations apply` on release. Add a worker
+  deploy step/workflow and worker test/lint to CI. All secrets/bindings live on
+  the Worker; the frontend ships none.
