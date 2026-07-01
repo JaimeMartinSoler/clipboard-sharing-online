@@ -4,8 +4,9 @@ compatibility_date = "2024-11-01"
 # Required by @cloudflare/vitest-pool-workers; harmless in production.
 compatibility_flags = ["nodejs_compat"]
 
-# Same-origin API. Bind this Worker to `/api/*` on the Pages custom domain so the
-# browser talks to it WITHOUT CORS. Uncomment and set your zone at deploy time:
+# Same-origin API. This Worker is bound to `/api/*` on the Pages custom domain so
+# the browser talks to it WITHOUT CORS. Set the `pattern`/`zone_name` to match
+# your zone.
 
 [[routes]]
 pattern = "clipboard-sharing-online.com/api/*"

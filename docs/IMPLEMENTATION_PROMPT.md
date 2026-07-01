@@ -101,7 +101,7 @@ app. It assumes `CLAUDE.md`, `docs/SPEC.md`, `docs/ARCHITECTURE.md`, and
 
 ## Notes for whoever runs this
 - One-time Cloudflare setup (outside the code): create the D1 database
-  (`wrangler d1 create clipboard-sharing`), put its `database_id` in
+  (`wrangler d1 create clipboard-sharing-online`), put its `database_id` in
   `worker/wrangler.toml`, set the `CLOUDFLARE_*` GitHub secrets used by the
   deploy workflows, and bind the Worker route to `/api/*` on the Pages custom
   domain so the API is same-origin.

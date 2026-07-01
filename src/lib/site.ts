@@ -5,5 +5,5 @@
  * page metadata (canonical + metadataBase). Keep this the ONLY place the
  * absolute URL lives.
  */
-export const SITE_URL = "https://clipboard-sharing.online";
+export const SITE_URL = "https://clipboard-sharing-online.com";
 export const SITE_NAME = "Clipboard Sharing Online";
