@@ -121,32 +121,104 @@ origin.
 
 ## Deploy
 
+The two environments are **fully decoupled** — each has its own frontend, Worker,
+and D1, served **same-origin** on a single host (the Worker route takes precedence
+over Pages for `/api/*`; everything else is the static export):
+
+| Environment | Host | Frontend (Pages) | API (Worker route → D1) |
+| --- | --- | --- | --- |
+| production | `clipboard-sharing-online.com` | `main` branch | `…/api/*` → `clipboard-sharing-online-api` → `clipboard-sharing-online` D1 |
+| develop | `develop.clipboard-sharing-online.com` | `develop` branch | `…/api/*` → `clipboard-sharing-online-api-develop` → `clipboard-sharing-online-develop` D1 |
+
+The routes and D1 bindings are declared in
+[`worker/wrangler.toml`](worker/wrangler.toml) (top level = prod, `[env.develop]`
+= staging). The steps below are the one-time console/CLI setup that has to exist
+for those declarations to have something to bind to.
+
 ### One-time Cloudflare setup
 
-```bash
-# Create the production D1 database and copy its id into worker/wrangler.toml
-pnpm --filter worker exec wrangler d1 create clipboard-sharing-online
+This is the exact sequence that gets a working, decoupled prod + develop. Do it
+once; afterwards CI keeps both in sync.
 
-# Create the develop (staging) D1 and copy its id into the [env.develop] block
+**1. Own the domain in Cloudflare.** Add `clipboard-sharing-online.com` as a zone
+(nameservers pointed at Cloudflare) so you can attach proxied hostnames and Worker
+routes to it.
+
+**2. Create the two D1 databases** and copy each printed `database_id` into
+`worker/wrangler.toml` (prod → top-level `[[d1_databases]]`, develop →
+`[[env.develop.d1_databases]]`):
+
+```bash
+pnpm --filter worker exec wrangler d1 create clipboard-sharing-online
 pnpm --filter worker exec wrangler d1 create clipboard-sharing-online-develop
 ```
 
-Then set these GitHub secrets: `CLOUDFLARE_API_TOKEN` (needs Workers Scripts,
-D1, Workers Routes, and Pages edit scopes), `CLOUDFLARE_ACCOUNT_ID`, and
-`CLOUDFLARE_PROJECT_NAME` (Pages project).
+`database_id` is an identifier, not a secret — it is safe to commit. Access is
+gated by the account-scoped API token, not by knowing the id.
 
-Same-origin wiring — each environment serves the frontend and the `/api/*`
-Worker on **one** host (the Worker route takes precedence over Pages for `/api/*`,
-the rest is the static export):
+**3. Create the API token** (My Profile → API Tokens → Create Custom Token) with
+**all** of these — a token missing the zone scopes deploys the Worker but silently
+fails to create its `/api/*` route:
 
-| Environment | Host | Serves |
-| --- | --- | --- |
-| production | `clipboard-sharing-online.com` | Pages `main` + prod Worker route |
-| develop | `develop.clipboard-sharing-online.com` | Pages `develop` branch + `[env.develop]` Worker route |
+| Scope | Type | Permission | Needed for |
+| --- | --- | --- | --- |
+| Workers Scripts | Account | Edit | Upload/deploy the Worker |
+| D1 | Account | Edit | `d1 migrations apply --remote` |
+| Cloudflare Pages | Account | Edit | Frontend Pages deploy |
+| Workers Routes | Zone | Edit | Bind `…/api/*` to the Worker |
+| Zone | Zone | Read | Resolve `zone_name` → zone id |
+| Account Settings | Account | Read | List the account (usually auto-included) |
 
-Attach both as Pages custom domains (the develop subdomain must point at the
-`develop` branch) so the Worker routes have a matching proxied host. The routes
-live in [`worker/wrangler.toml`](worker/wrangler.toml).
+Scope Zone Resources to `clipboard-sharing-online.com`. Save it as the
+`CLOUDFLARE_API_TOKEN` GitHub secret, alongside `CLOUDFLARE_ACCOUNT_ID` and
+`CLOUDFLARE_PROJECT_NAME` (the Pages project).
+
+**4. Wire production** (`clipboard-sharing-online.com`):
+
+- Pages → your project → **Custom domains → add `clipboard-sharing-online.com`**.
+  A Pages custom domain serves the project's **production branch** (`main`).
+- Workers → `clipboard-sharing-online-api` → **Routes → add
+  `clipboard-sharing-online.com/api/*`** (zone `clipboard-sharing-online.com`).
+  This matches the `[[routes]]` block in `wrangler.toml`; adding it in the dash
+  is equivalent and useful if a token ever deploys without the route scope.
+
+**5. Wire develop** (`develop.clipboard-sharing-online.com`) — the tricky part.
+Pages custom domains only serve the **production** branch, so to put the
+**`develop`** branch on a custom subdomain you point the custom domain at the
+branch's `*.pages.dev` alias:
+
+- **DNS → add a proxied (orange-cloud) `CNAME`**: name `develop`, target
+  `develop.clipboard-sharing-online.pages.dev` (the develop-branch alias). Proxied
+  is required — Worker routes only fire on proxied hostnames.
+- Pages → same project → **Custom domains → add
+  `develop.clipboard-sharing-online.com`**. Combined with the CNAME above, Pages
+  serves the **develop** branch on this host (not `main`), with a real edge cert
+  (this is what clears the `522` you get from the CNAME alone).
+- Workers → `clipboard-sharing-online-api-develop` → **Routes → add
+  `develop.clipboard-sharing-online.com/api/*`** (zone
+  `clipboard-sharing-online.com`), mirroring the `[[env.develop.routes]]` block.
+
+**Test each host** (never the `*.pages.dev` URL — no Worker route covers it, so
+its `/api/*` always `405`s):
+
+```bash
+# Expect a JSON body (e.g. 400), NOT a 405 — 405 means the request hit Pages,
+# i.e. the Worker route isn't bound to that host.
+curl -i -X POST https://clipboard-sharing-online.com/api/rooms \
+  -H 'content-type: application/json' -d '{}'
+curl -i -X POST https://develop.clipboard-sharing-online.com/api/rooms \
+  -H 'content-type: application/json' -d '{}'
+```
+
+**Troubleshooting the two failures we hit:**
+
+- **`405` on `POST /api/…`** — the request reached **Pages**, not the Worker.
+  Static Pages only serves `GET`/`HEAD`, so a `POST` returns `405`. Cause: the
+  Worker `/api/*` route isn't bound to that host (step 4/5), or you're browsing
+  the `*.pages.dev` URL, which no route covers.
+- **`522` on the root page** — Cloudflare can't serve the host because it isn't a
+  registered **Pages custom domain** yet (the proxied CNAME alone isn't enough).
+  Add it under Pages → Custom domains (step 5).
 
 ### CI workflows
 
