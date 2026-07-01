@@ -98,9 +98,15 @@ export interface JoinResult {
  *
  * Steps: drop the room if it is an expired shell (so reusing a password after
  * TTL yields a fresh, unsealed room) and its orphaned members; create the room
- * on first contact with the requested capacity; then insert the member only if
- * a slot is free. The caller stores only `tokenHash`; the raw token is returned
- * to the client once and never persisted.
+ * on first contact with the requested capacity; insert the member only if a slot
+ * is free; then read back capacity + member count. The caller stores only
+ * `tokenHash`; the raw token is returned to the client once and never persisted.
+ *
+ * The read-back is the LAST statement of the same batch, so it observes exactly
+ * this transaction's view — including this joiner's insert but not concurrent
+ * uncommitted ones. That keeps the reported `slot`/`sealed` consistent with the
+ * insert under a race; reading it in a separate statement after commit could
+ * observe a later joiner and inflate the terminal number.
  */
 export async function joinRoom(
   db: D1Database,
@@ -130,15 +136,18 @@ export async function joinRoom(
         "INSERT INTO members (room_id, token_hash, joined_at) SELECT ?, ?, ? WHERE (SELECT COUNT(*) FROM members WHERE room_id = ?) < (SELECT capacity FROM rooms WHERE room_id = ?)",
       )
       .bind(roomId, tokenHash, now, roomId, roomId),
+    db
+      .prepare(
+        "SELECT capacity, (SELECT COUNT(*) FROM members WHERE room_id = ?) AS members FROM rooms WHERE room_id = ?",
+      )
+      .bind(roomId, roomId),
   ]);
 
   const joined = (results[3]?.meta.changes ?? 0) > 0;
-  const stat = await db
-    .prepare(
-      "SELECT capacity, (SELECT COUNT(*) FROM members WHERE room_id = ?) AS members FROM rooms WHERE room_id = ?",
-    )
-    .bind(roomId, roomId)
-    .first<{ capacity: number; members: number }>();
+  const stat = (results[4]?.results?.[0] ?? null) as {
+    capacity: number;
+    members: number;
+  } | null;
 
   return {
     joined,

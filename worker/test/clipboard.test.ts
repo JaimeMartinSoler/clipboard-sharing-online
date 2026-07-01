@@ -87,15 +87,32 @@ describe("validation & size cap", () => {
     expect(res.status).toBe(400);
   });
 
-  it("413s when the ciphertext exceeds the size cap", async () => {
+  it("413s when the ciphertext exceeds the size cap (by DECODED bytes)", async () => {
     await seedRoom("room-big");
     await seedMember("room-big", TOKEN);
-    const tooBig = "A".repeat(Number(env.MAX_CIPHERTEXT_BYTES) + 1);
+    const maxBytes = Number(env.MAX_CIPHERTEXT_BYTES);
+    // base64url decodes ~3/4 of its length, so we need > maxBytes*4/3 chars for
+    // the decoded payload to exceed the byte cap.
+    const tooBig = "A".repeat(Math.ceil(((maxBytes + 1) * 4) / 3) + 4);
     const res = await call(
       "/api/clipboard",
       pushReq("room-big", tooBig, "SVY", TOKEN, "3.3.3.3"),
     );
     expect(res.status).toBe(413);
+  });
+
+  it("accepts a payload whose char length exceeds the cap but decodes under it", async () => {
+    await seedRoom("room-fit");
+    await seedMember("room-fit", TOKEN);
+    const maxBytes = Number(env.MAX_CIPHERTEXT_BYTES);
+    // More chars than the byte cap, but ~3/4 of them decode → under the cap.
+    const chars = maxBytes + 100;
+    expect(Math.floor((chars * 3) / 4)).toBeLessThanOrEqual(maxBytes);
+    const res = await call(
+      "/api/clipboard",
+      pushReq("room-fit", "A".repeat(chars), "SVY", TOKEN, "3.3.3.4"),
+    );
+    expect(res.status).toBe(200);
   });
 });
 

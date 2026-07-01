@@ -39,6 +39,16 @@ function isBase64url(value: unknown, maxLength: number): value is string {
   );
 }
 
+/**
+ * Decoded byte length of an unpadded base64url string. Every 4 chars encode 3
+ * bytes; a 2- or 3-char remainder encodes 1 or 2 bytes. `floor(len * 3 / 4)` is
+ * exact for well-formed unpadded base64url, so the size cap counts real bytes,
+ * not the ~1.33× longer encoded string.
+ */
+function base64urlByteLength(value: string): number {
+  return Math.floor((value.length * 3) / 4);
+}
+
 interface PushBody {
   roomId: string;
   ciphertext: string;
@@ -52,7 +62,10 @@ function parsePushBody(body: unknown, maxCiphertext: number): PushBody | null {
   // roomId: 16 bytes → 22 base64url chars; iv: 12 bytes → 16. Bound generously.
   if (!isBase64url(o.roomId, 64)) return null;
   if (!isBase64url(o.iv, 64)) return null;
-  // ciphertext shape here; the precise size cap (→ 413) is checked separately.
+  // Cheap shape guard only (→ 400); the precise byte cap (→ 413) is applied
+  // after auth. `maxCiphertext` is a BYTE budget and base64url is ~1.33× longer,
+  // so the char bound must exceed it — `* 2` is a generous ceiling that still
+  // rejects egregiously oversized bodies before the exact byte check.
   if (!isBase64url(o.ciphertext, maxCiphertext * 2)) return null;
   if (o.ttlMs !== undefined && typeof o.ttlMs !== "number") return null;
   return {
@@ -131,10 +144,25 @@ function clampTtl(ttlMs: number | undefined, env: Bindings): number {
 // In-Worker fixed-window per-IP limiter. State is per-isolate (best-effort,
 // defense-in-depth); a Cloudflare Rate Limiting rule can be layered at the edge.
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
+let lastRateSweep = 0;
+
+/**
+ * Opportunistically evict expired buckets so the map can't grow unbounded as a
+ * long-lived isolate sees many distinct IPs. Throttled to once per window, so
+ * the hot path stays O(1) and the sweep is at most O(n) once every `windowMs`.
+ */
+function sweepRateBuckets(now: number, windowMs: number): void {
+  if (now - lastRateSweep < windowMs) return;
+  lastRateSweep = now;
+  for (const [ip, bucket] of rateBuckets) {
+    if (bucket.resetAt <= now) rateBuckets.delete(ip);
+  }
+}
 
 /** Test hook: clear the in-memory limiter between cases. */
 export function __resetRateLimit(): void {
   rateBuckets.clear();
+  lastRateSweep = 0;
 }
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -145,6 +173,7 @@ app.use("/api/*", async (c, next) => {
     const windowMs = Number(c.env.RATE_LIMIT_WINDOW_MS);
     const ip = c.req.header("CF-Connecting-IP") ?? "unknown";
     const now = Date.now();
+    sweepRateBuckets(now, windowMs);
     const bucket = rateBuckets.get(ip);
     if (!bucket || bucket.resetAt <= now) {
       rateBuckets.set(ip, { count: 1, resetAt: now + windowMs });
@@ -202,7 +231,7 @@ app.post("/api/clipboard", async (c) => {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
-  if (body.ciphertext.length > maxCiphertext) {
+  if (base64urlByteLength(body.ciphertext) > maxCiphertext) {
     return c.json({ error: "Payload too large" }, 413);
   }
 

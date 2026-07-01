@@ -102,7 +102,7 @@ describe("pushClipboard", () => {
     expect(JSON.parse(init.body as string).ttlMs).toBe(60000);
   });
 
-  it("maps 401 → slot lost, 413 → too large, 404 → empty", async () => {
+  it("maps 401 → slot lost, 413 → too large, 404 → room gone", async () => {
     mockFetch(json({}, 401));
     expect((await pushClipboard("r", "t", { ciphertext: "C", iv: "I" })).ok).toBe(
       false,
@@ -118,10 +118,11 @@ describe("pushClipboard", () => {
       error: ApiError.TOO_LARGE,
     });
 
+    // A push 404 means the room is gone (not an empty pull) → rejoin nudge.
     mockFetch(json({}, 404));
     expect(await pushClipboard("r", "t", { ciphertext: "C", iv: "I" })).toEqual({
       ok: false,
-      error: ApiError.EMPTY,
+      error: ApiError.ROOM_GONE,
     });
   });
 });

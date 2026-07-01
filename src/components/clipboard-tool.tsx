@@ -79,10 +79,19 @@ export function ClipboardTool() {
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
-  // Tick once a second only while there is a countdown to render.
+  // Tick once a second only while there is a live countdown, and stop as soon
+  // as it hits zero — no point re-rendering "expired" every second forever.
   useEffect(() => {
     if (expiresAt === null) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
+    if (Date.now() >= expiresAt) {
+      setNow(Date.now());
+      return;
+    }
+    const id = setInterval(() => {
+      const t = Date.now();
+      setNow(t);
+      if (t >= expiresAt) clearInterval(id);
+    }, 1000);
     return () => clearInterval(id);
   }, [expiresAt]);
 
@@ -159,7 +168,11 @@ export function ClipboardTool() {
         ttlMs,
       );
       if (!res.ok) {
-        if (res.error === ApiError.SLOT_LOST) dropSession();
+        // A lost slot or a vanished room both mean this membership is dead —
+        // drop the session so the user rejoins rather than retrying blindly.
+        if (res.error === ApiError.SLOT_LOST || res.error === ApiError.ROOM_GONE) {
+          dropSession();
+        }
         setStatus({ kind: "error", message: slotLostCopy(res.error) });
         return;
       }

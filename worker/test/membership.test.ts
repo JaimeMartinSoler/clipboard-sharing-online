@@ -91,6 +91,18 @@ describe("POST /api/rooms — join, seal, capacity", () => {
     expect(granted).toBe(capacity);
     expect(rejected).toBe(attempts - capacity);
     expect(await memberCount(roomId)).toBe(capacity);
+
+    // Slots are read back inside the atomic batch, so each granted joiner reports
+    // a distinct 1-based terminal number — no two racers claim the same slot and
+    // none is inflated to the sealed count.
+    const grantedBodies = await Promise.all(
+      responses
+        .filter((r) => r.status === 200)
+        .map((r) => r.json() as Promise<JoinOk>),
+    );
+    const slots = grantedBodies.map((b) => b.joined).sort((a, b) => a - b);
+    expect(slots).toEqual([1, 2, 3]);
+    expect(grantedBodies.filter((b) => b.sealed)).toHaveLength(1); // only slot 3
   });
 });
 

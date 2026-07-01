@@ -26,6 +26,8 @@ export const ApiError = {
   SEALED: "Room is sealed — no free slot.",
   /** 404: nothing to pull (empty room or wrong password — indistinguishable). */
   EMPTY: "No data in this room (or wrong password).",
+  /** 404 on push: the room expired/vanished before this upload landed. */
+  ROOM_GONE: "This room expired — rejoin to keep sharing.",
   /** 413: encrypted payload exceeds the server's size cap. */
   TOO_LARGE: "Text is too large to share — try less content.",
   SERVER: "The server had a problem. Please try again.",
@@ -104,7 +106,9 @@ export async function pushClipboard(
   }
   if (res.status === 401) return err(ApiError.SLOT_LOST);
   if (res.status === 413) return err(ApiError.TOO_LARGE);
-  if (res.status === 404) return err(ApiError.EMPTY);
+  // A push to a missing/expired room is an upload failure, not an empty pull:
+  // surface a rejoin nudge rather than the "no data / wrong password" copy.
+  if (res.status === 404) return err(ApiError.ROOM_GONE);
   if (!res.ok) return err(ApiError.SERVER);
   return readJson<PushResponse>(res);
 }
