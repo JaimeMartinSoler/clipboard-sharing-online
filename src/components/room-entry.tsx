@@ -2,13 +2,12 @@
 
 import { Eye, EyeOff, LogIn, Plus } from "lucide-react";
 import { E2EBadge } from "@/components/e2e-badge";
-import { Hint } from "@/components/hint";
 import { PasswordStrengthMeter } from "@/components/password-strength-meter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 
-export const CAPACITY_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+export const CAPACITY_OPTIONS = [2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 /** Busy states the entry view cares about. */
 export type EntryBusy = "create" | "join" | null;
@@ -95,21 +94,26 @@ export function RoomEntry({
               You become the creator and set how many terminals may share it. The
               room seals when full.
             </p>
-            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            <label
+              htmlFor="capacity"
+              className="flex flex-col gap-1 text-xs text-muted-foreground"
+            >
               Terminals
-              <Hint text="How many devices may share this room. The room seals at this count; only the creator sets it.">
-                <Select
-                  value={capacity}
-                  onChange={(e) => onCapacityChange(Number(e.target.value))}
-                  aria-label="Terminals"
-                >
-                  {CAPACITY_OPTIONS.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </Select>
-              </Hint>
+              <Select
+                id="capacity"
+                containerClassName="w-full"
+                className="w-full text-center"
+                value={capacity}
+                onChange={(e) => onCapacityChange(Number(e.target.value))}
+                aria-label="Terminals"
+                title="How many devices may share this room. The room seals at this count; only the creator sets it."
+              >
+                {CAPACITY_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </Select>
             </label>
             <Button
               size="sm"

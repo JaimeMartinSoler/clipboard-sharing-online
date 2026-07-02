@@ -12,7 +12,6 @@ import { StatusBanner } from "@/components/status-banner";
 import { Button } from "@/components/ui/button";
 import {
   ApiError,
-  clearClipboard,
   deleteRoom,
   joinRoom,
   type JoinMode,
@@ -22,7 +21,7 @@ import {
 import { decrypt, deriveKeys, encrypt } from "@/lib/crypto";
 import { decodePasswordHash } from "@/lib/room-link";
 
-type Busy = EntryBusy | "push" | "pull" | "clear";
+type Busy = EntryBusy | "push" | "pull";
 
 function formatRemaining(ms: number): string {
   if (ms <= 0) return "expired";
@@ -37,6 +36,16 @@ function slotLostCopy(error: string): string {
   return error === ApiError.SLOT_LOST
     ? "Your slot was lost (reload/closed) — locked out until this room expires."
     : error;
+}
+
+/**
+ * True on first render when the page was opened via a `#p=…` share link, so we
+ * can show a neutral "joining" placeholder instead of flashing the entry view
+ * while the (slow) key derivation + join runs.
+ */
+function hasInboundShareLink(): boolean {
+  if (typeof window === "undefined") return false;
+  return decodePasswordHash(window.location.hash) !== null;
 }
 
 /**
@@ -57,6 +66,9 @@ export function ClipboardApp() {
 
   const [session, setSession] = useState<Session | null>(null);
   const [busy, setBusy] = useState<Busy | null>(null);
+  // Set synchronously when arriving via a share link so the entry view never
+  // flashes before the auto-join resolves.
+  const [autoJoining, setAutoJoining] = useState(hasInboundShareLink);
   const [status, setStatus] = useState<Status>({
     kind: "info",
     message: "Enter a shared password, then Create or Join a room.",
@@ -115,17 +127,21 @@ export function ClipboardApp() {
         });
         setText("");
         setExpiresAt(null);
-        setStatus(
-          sealed
-            ? {
-                kind: "validated",
-                message: `Room sealed (${slot}/${cap}) — sharing is locked to these terminals.`,
-              }
-            : {
-                kind: "info",
-                message: `${role === "creator" ? "Created" : "Joined"} as terminal ${slot} of ${cap} — waiting for ${cap - slot} more.`,
-              },
-        );
+        // Joiners see no room-status detail (slot counts / sealed state); that
+        // is creator-only information. The creator gets the full picture.
+        if (role !== "creator") {
+          setStatus({ kind: "validated", message: "Joined the room." });
+        } else if (sealed) {
+          setStatus({
+            kind: "validated",
+            message: `Room sealed (${slot}/${cap}) — sharing is locked to these terminals.`,
+          });
+        } else {
+          setStatus({
+            kind: "info",
+            message: `Created as terminal ${slot} of ${cap} — waiting for ${cap - slot} more.`,
+          });
+        }
       } finally {
         setBusy(null);
       }
@@ -151,7 +167,9 @@ export function ClipboardApp() {
     }
     if (pw) {
       setPassword(pw);
-      void allocate("join", pw);
+      void allocate("join", pw).finally(() => setAutoJoining(false));
+    } else {
+      setAutoJoining(false);
     }
   }, [allocate]);
 
@@ -219,25 +237,12 @@ export function ClipboardApp() {
     }
   }, [session, dropSession]);
 
-  const handleClear = useCallback(async () => {
-    if (!session) return;
-    setBusy("clear");
-    try {
-      const res = await clearClipboard(session.roomId, session.token);
-      if (!res.ok) {
-        if (res.error === ApiError.SLOT_LOST) dropSession();
-        setStatus({ kind: "error", message: slotLostCopy(res.error) });
-        return;
-      }
-      setExpiresAt(null);
-      setStatus({
-        kind: "info",
-        message: "Cleared the room's content on the server.",
-      });
-    } finally {
-      setBusy(null);
-    }
-  }, [session, dropSession]);
+  // Clear is local-only: it empties the text box here without touching the
+  // server. The shared blob is only replaced/removed via Push.
+  const handleClear = useCallback(() => {
+    setText("");
+    setStatus({ kind: "info", message: "Cleared the text box." });
+  }, []);
 
   const handleLeave = useCallback(() => {
     dropSession();
@@ -281,17 +286,18 @@ export function ClipboardApp() {
             <h1 className="text-2xl font-semibold tracking-tight">
               Clipboard room
             </h1>
-            <span className="rounded-full border border-border bg-muted/50 px-2 py-0.5 text-xs text-muted-foreground">
-              {session.role} · terminal {session.slot}/{session.capacity}
-              {session.sealed ? " · sealed" : ""}
-            </span>
-            <div className="ml-auto">
-              <Hint text="Leave the room. Your slot is forfeited but still counts against the cap until the room expires.">
-                <Button variant="outline" size="sm" onClick={handleLeave}>
-                  <LogOut /> Leave
-                </Button>
-              </Hint>
-            </div>
+            {/* Only a joiner may Leave (forfeiting their slot). The creator
+                cannot — leaving would orphan the room with no way back in — so
+                they use "Remove room" in the creator panel instead. */}
+            {session.role === "joiner" && (
+              <div className="ml-auto">
+                <Hint text="Leave the room. Your slot is forfeited but still counts against the cap until the room expires.">
+                  <Button variant="outline" size="sm" onClick={handleLeave}>
+                    <LogOut /> Leave
+                  </Button>
+                </Hint>
+              </div>
+            )}
           </div>
           <div>
             <E2EBadge />
@@ -322,16 +328,18 @@ export function ClipboardApp() {
             onTextChange={setText}
             ttlMs={ttlMs}
             onTtlChange={setTtlMs}
-            busy={
-              busy === "push" || busy === "pull" || busy === "clear"
-                ? busy
-                : null
-            }
+            busy={busy === "push" || busy === "pull" ? busy : null}
             onPush={handlePush}
             onPull={handlePull}
             onClear={handleClear}
+            canSetExpiry={session.role === "creator"}
           />
         </>
+      ) : autoJoining ? (
+        <div className="flex flex-col items-center gap-3 py-16 text-center text-sm text-muted-foreground">
+          <E2EBadge />
+          <span>Joining the room…</span>
+        </div>
       ) : (
         <>
           <RoomEntry

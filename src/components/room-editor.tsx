@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Trash2, Upload } from "lucide-react";
+import { ClipboardPaste, Download, Trash2, Upload } from "lucide-react";
 import { CopyButton } from "@/components/copy-button";
 import { Hint } from "@/components/hint";
 import { Button } from "@/components/ui/button";
@@ -17,8 +17,8 @@ export type EditorBusy = "push" | "pull" | "clear" | null;
 
 /**
  * The shared clipboard editor — identical for creator and joiner. Encrypt-then-
- * Push, Pull-then-decrypt, Clear the server blob, Copy locally. The Expiry
- * selector sets the TTL sent with the next Push.
+ * Push, Pull-then-decrypt, Clear the local text box, Copy/Paste locally. The
+ * Expiry selector (creator only) sets the TTL sent with the next Push.
  */
 export function RoomEditor({
   text,
@@ -29,6 +29,7 @@ export function RoomEditor({
   onPush,
   onPull,
   onClear,
+  canSetExpiry,
 }: {
   text: string;
   onTextChange: (value: string) => void;
@@ -38,8 +39,19 @@ export function RoomEditor({
   onPush: () => void;
   onPull: () => void;
   onClear: () => void;
+  /** Only the creator may choose the server-side TTL. */
+  canSetExpiry: boolean;
 }) {
   const busyAny = busy !== null;
+
+  async function handlePaste() {
+    try {
+      const pasted = await navigator.clipboard.readText();
+      onTextChange(pasted);
+    } catch {
+      // Clipboard API unavailable/denied (e.g. insecure context) — fail quietly.
+    }
+  }
 
   return (
     <section className="flex flex-col gap-2">
@@ -47,6 +59,11 @@ export function RoomEditor({
         <h2 className="text-sm font-medium text-muted-foreground">Text</h2>
         <div className="flex items-center gap-2">
           <CopyButton value={text} />
+          <Hint text="Paste from your device clipboard into the text box.">
+            <Button size="sm" variant="outline" onClick={handlePaste}>
+              <ClipboardPaste /> Paste
+            </Button>
+          </Hint>
         </div>
       </div>
       <textarea
@@ -75,28 +92,30 @@ export function RoomEditor({
         <ActionButton
           disabled={busyAny}
           onClick={onClear}
-          hint="Delete the shared content from the server immediately."
+          hint="Clear the text box here. This is local only — it does not touch the server; use Push to overwrite the shared blob."
           icon={<Trash2 />}
           label="Clear"
           variant="outline"
         />
 
-        <label className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
-          Expiry
-          <Hint text="How long a pushed blob lives on the server. Shorter is safer.">
-            <Select
-              value={ttlMs}
-              onChange={(e) => onTtlChange(Number(e.target.value))}
-              aria-label="Expiry"
-            >
-              {TTL_OPTIONS.map((o) => (
-                <option key={o.ms} value={o.ms}>
-                  {o.label}
-                </option>
-              ))}
-            </Select>
-          </Hint>
-        </label>
+        {canSetExpiry && (
+          <label className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
+            Expiry
+            <Hint text="How long a pushed blob lives on the server. Shorter is safer.">
+              <Select
+                value={ttlMs}
+                onChange={(e) => onTtlChange(Number(e.target.value))}
+                aria-label="Expiry"
+              >
+                {TTL_OPTIONS.map((o) => (
+                  <option key={o.ms} value={o.ms}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            </Hint>
+          </label>
+        )}
       </div>
     </section>
   );

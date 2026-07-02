@@ -29,8 +29,10 @@ encryption**.
 5. On device B: **Pull** (the blob is downloaded and decrypted in your browser).
    A wrong password simply fails to decrypt — the server gives the same answer
    either way.
-6. The blob (and the whole room) auto-expires after a short TTL; **Clear**
-   removes it immediately.
+6. **Copy** / **Paste** move text between the pane and your device clipboard;
+   **Clear** empties the text box locally (it does not touch the server — Push
+   is what overwrites the shared blob). The blob and the whole room auto-expire
+   after a short TTL.
 
 ### Creator controls
 
@@ -43,6 +45,11 @@ The creator gets extra tools (enforced at the server, not just the UI):
   refresh on demand) with a **Remove** button to revoke a joiner. A revoked slot
   stays sealed — it never reopens for a stranger.
 - **Remove room** to delete the content, all members, and the room instantly.
+- The **Expiry** selector (creator-only) sets the TTL sent with the next Push.
+
+Joiners get a focused view: the shared editor plus **Leave** (forfeit their
+slot). Room-status detail — slot counts, sealed state, expiry control — is shown
+only to the creator.
 
 ### Crypto, in one paragraph
 

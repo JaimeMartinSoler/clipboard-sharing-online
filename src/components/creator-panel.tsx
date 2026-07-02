@@ -67,10 +67,32 @@ export function CreatorPanel({
         return;
       }
       setMembers(res.value);
+      // Keep the creator's status line in sync with the live roster: a fresh
+      // count of joined terminals, sealed once the cap is reached.
+      const count = res.value.length;
+      const waiting = session.capacity - count;
+      onStatus(
+        waiting <= 0
+          ? {
+              kind: "validated",
+              message: `Room sealed (${count}/${session.capacity}) — sharing is locked to these terminals.`,
+            }
+          : {
+              kind: "info",
+              message: `Created as terminal ${session.slot} of ${session.capacity} — waiting for ${waiting} more.`,
+            },
+      );
     } finally {
       setLoading(false);
     }
-  }, [session.roomId, session.token, onStatus, onSessionInvalid]);
+  }, [
+    session.roomId,
+    session.token,
+    session.slot,
+    session.capacity,
+    onStatus,
+    onSessionInvalid,
+  ]);
 
   // Load the roster once on mount.
   useEffect(() => {
