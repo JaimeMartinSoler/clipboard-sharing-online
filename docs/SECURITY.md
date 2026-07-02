@@ -14,11 +14,15 @@ does **not**, the residual risks of the password-only design, and the mitigation
   rather than yield altered plaintext.
 - **No accounts, no PII.** There is nothing to log in with and nothing personal
   to leak. Rooms are anonymous and short-lived; "membership" is just an
-  in-memory bearer token, not an identity.
+  in-memory bearer token with a `creator`/`joiner` role, not an identity. The
+  members list a creator can view carries only `{ id, role, joinedAt }` — **no IP
+  addresses are stored or shown** (considered and deliberately dropped).
 - **Ephemeral.** Rooms, their memberships, and blobs auto-expire (lazy delete on
   read + cleanup cron), bounding the window in which any ciphertext exists at all.
 - **Sealable.** A room can be capped at N terminals and **sealed** once full, so
-  access is restricted to the terminals present at seal time (see below).
+  access is restricted to the terminals present at seal time (see below). A
+  creator may **revoke** a joiner, but the freed slot stays sealed — it never
+  reopens for a stranger.
 
 ## Cryptographic design (recap)
 - `Argon2id(password, APP_SALT)` → master key material (memory-hard, slow).
@@ -26,6 +30,27 @@ does **not**, the residual risks of the password-only design, and the mitigation
   AES-GCM-256 `contentKey` (never sent).
 - Per-push random 96-bit `iv`; GCM tag authenticates each blob.
 - See `docs/ARCHITECTURE.md` for exact info-strings and sizes.
+
+## Share links keep the password in the URL fragment
+The creator can share an auto-join link (and a QR of it):
+`https://<origin>/#p=<base64url(password)>`.
+
+- **Why the fragment.** The secret is placed **after `#`**, in the URL fragment.
+  Browsers never send the fragment in the HTTP request line, so the password does
+  **not** reach Cloudflare's edge, our Worker, proxies, or server logs — the
+  zero-knowledge guarantee holds. Cloudflare Web Analytics beacons the page path,
+  not the fragment. Putting the password in the **path or query** would leak it to
+  all of the above and is therefore forbidden.
+- **base64url is not encryption.** It is reversible transport encoding. Anyone
+  with the link can derive the room and key — **sharing the link is sharing
+  decryption ability**, which is the whole point of a share button. The UI says so.
+- **Consumed then scrubbed.** On load the app reads the fragment, auto-joins, then
+  removes it from the address bar (`history.replaceState`) so it doesn't persist
+  in the URL bar, browser history, or over-the-shoulder view. It is still the
+  user's responsibility not to forward the link over an insecure channel.
+- **QR is local.** The QR is rendered by a vendored, dependency-free encoder as
+  inline SVG (`src/lib/qr.ts`) — no network request, no third-party service, and
+  the payload is the same fragment URL. CSP-safe (no external references).
 
 ## The central trade-off: password-only ⇒ fixed salt
 Because the **only** shared secret between the two terminals is the password,
@@ -134,5 +159,14 @@ further terminal can join *that room instance*.
   client memory only.
 - Allocate slots **atomically** (D1 transaction) so concurrent joins can never
   over-seal past `capacity`.
+- Enforce roles at the **Worker/DB layer**, not just the view: creator-only
+  endpoints (list members, revoke joiner, delete room) verify the Bearer token
+  maps to the room's `creator` (`403` for a joiner, `401` for a non-member).
+- Treat `rooms.sealed` as **write-once**: set it when capacity is first reached
+  and never reset it, so revoking a joiner cannot reopen a slot.
+- Never store or display client **IP addresses** or other PII; the members view
+  exposes only `{ id, role, joinedAt }`.
+- Keep the password out of the URL **path and query**; share links carry it only
+  in the **fragment** (`#p=…`), and the app scrubs the fragment after auto-join.
 - The cap/membership layer must **never** influence key derivation or weaken the
   content E2EE; `capacity` is plaintext metadata, not a secret.

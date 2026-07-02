@@ -2,7 +2,11 @@ import * as React from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement>;
+export interface SelectProps
+  extends React.SelectHTMLAttributes<HTMLSelectElement> {
+  /** Class applied to the wrapper — use `w-full` to stretch the control. */
+  containerClassName?: string;
+}
 
 /**
  * A native <select> styled to match the rest of the toolbar. Native is a
@@ -10,8 +14,8 @@ export type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement>;
  * accessible, and adds no JS — fitting this client-only app.
  */
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, children, ...props }, ref) => (
-    <div className="relative inline-flex">
+  ({ className, containerClassName, children, ...props }, ref) => (
+    <div className={cn("relative inline-flex", containerClassName)}>
       <select
         ref={ref}
         className={cn(
