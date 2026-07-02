@@ -7,14 +7,20 @@
  *
  * Stage 3: clipboard routes + size cap + per-IP rate limit + lazy/cron expiry.
  * Bearer-token enforcement and POST /api/rooms are added in stage 4.
+ * Issue #7: create/join roles + creator-only room management endpoints.
  */
 import { Hono } from "hono";
 import {
+  allocateSlot,
   clearClipboard,
+  deleteRoom,
   getClipboard,
+  getMemberRole,
   isMember,
-  joinRoom,
+  type JoinMode,
   lazyExpireRoom,
+  listMembers,
+  removeMember,
   setClipboard,
   sweepExpired,
 } from "./db";
@@ -79,13 +85,21 @@ function parsePushBody(body: unknown, maxCiphertext: number): PushBody | null {
 interface JoinBody {
   roomId: string;
   capacity: number;
+  mode: JoinMode;
 }
 
 function parseJoinBody(body: unknown): JoinBody | null {
   if (typeof body !== "object" || body === null) return null;
   const o = body as Record<string, unknown>;
   if (!isBase64url(o.roomId, 64)) return null;
-  let capacity = 2; // default
+  // Default to "join": creating a room is the deliberate act, so an omitted or
+  // unrecognised mode never silently creates one.
+  let mode: JoinMode = "join";
+  if (o.mode !== undefined) {
+    if (o.mode !== "create" && o.mode !== "join") return null;
+    mode = o.mode;
+  }
+  let capacity = 2; // default; ignored on join (the room already has one)
   if (o.capacity !== undefined) {
     if (
       typeof o.capacity !== "number" ||
@@ -97,7 +111,7 @@ function parseJoinBody(body: unknown): JoinBody | null {
     }
     capacity = o.capacity;
   }
-  return { roomId: o.roomId, capacity };
+  return { roomId: o.roomId, capacity, mode };
 }
 
 /** A fresh, high-entropy bearer token (256 bits), base64url. Returned once. */
@@ -118,18 +132,39 @@ async function sha256hex(input: string): Promise<string> {
     .join("");
 }
 
+/** Extract a non-empty Bearer token from an Authorization header, or null. */
+function bearerToken(authHeader: string | undefined): string | null {
+  if (typeof authHeader !== "string" || !authHeader.startsWith("Bearer ")) {
+    return null;
+  }
+  const token = authHeader.slice("Bearer ".length).trim();
+  return token.length === 0 ? null : token;
+}
+
 /** Authorize a request against a room's membership via its Bearer token. */
 async function authorizeMember(
   db: D1Database,
   roomId: string,
   authHeader: string | undefined,
 ): Promise<boolean> {
-  if (typeof authHeader !== "string" || !authHeader.startsWith("Bearer ")) {
-    return false;
-  }
-  const token = authHeader.slice("Bearer ".length).trim();
-  if (token.length === 0) return false;
+  const token = bearerToken(authHeader);
+  if (token === null) return false;
   return isMember(db, roomId, await sha256hex(token));
+}
+
+/**
+ * Resolve the caller's role in a room from their Bearer token. Returns null if
+ * the header is absent/malformed or the token is not a live member — callers map
+ * that to 401, and a non-creator role to 403.
+ */
+async function memberRole(
+  db: D1Database,
+  roomId: string,
+  authHeader: string | undefined,
+): Promise<"creator" | "joiner" | null> {
+  const token = bearerToken(authHeader);
+  if (token === null) return null;
+  return getMemberRole(db, roomId, await sha256hex(token));
 }
 
 function clampTtl(ttlMs: number | undefined, env: Bindings): number {
@@ -195,8 +230,9 @@ app.post("/api/rooms", async (c) => {
   const now = Date.now();
   const token = makeToken();
   const tokenHash = await sha256hex(token);
-  const result = await joinRoom(
+  const result = await allocateSlot(
     c.env.DB,
+    body.mode,
     body.roomId,
     body.capacity,
     tokenHash,
@@ -205,6 +241,15 @@ app.post("/api/rooms", async (c) => {
   );
 
   if (!result.joined) {
+    // 404: joining a room that does not exist (yet). 409: sealed/full, or a
+    // create collision (someone already created this room). Uniform, minimal
+    // detail — never an existence oracle beyond what the client already knows.
+    if (result.reason === "not_found") {
+      return c.json({ error: "Room not found" }, 404);
+    }
+    if (result.reason === "exists") {
+      return c.json({ error: "Room already exists", exists: true }, 409);
+    }
     return c.json(
       { error: "Room is sealed", capacity: result.capacity, sealed: true },
       409,
@@ -215,8 +260,50 @@ app.post("/api/rooms", async (c) => {
     token,
     joined: result.slot,
     capacity: result.capacity,
-    sealed: result.slot >= result.capacity,
+    sealed: result.sealed,
+    role: result.role,
   });
+});
+
+// --- Creator-only room management (issue #7) -------------------------------
+// All three enforce creator role at the Worker/DB layer: a non-member gets 401,
+// a joiner gets 403. The view is a convenience; this is the real boundary.
+
+app.get("/api/rooms/:roomId/members", async (c) => {
+  const roomId = c.req.param("roomId");
+  const role = await memberRole(c.env.DB, roomId, c.req.header("Authorization"));
+  if (role === null) return c.json({ error: "Unauthorized" }, 401);
+  if (role !== "creator") return c.json({ error: "Forbidden" }, 403);
+  const members = await listMembers(c.env.DB, roomId);
+  return c.json({ members });
+});
+
+app.delete("/api/rooms/:roomId/members/:memberId", async (c) => {
+  const roomId = c.req.param("roomId");
+  const memberId = Number(c.req.param("memberId"));
+  if (!Number.isInteger(memberId)) {
+    return c.json({ error: "Invalid member id" }, 400);
+  }
+  const role = await memberRole(c.env.DB, roomId, c.req.header("Authorization"));
+  if (role === null) return c.json({ error: "Unauthorized" }, 401);
+  if (role !== "creator") return c.json({ error: "Forbidden" }, 403);
+
+  const outcome = await removeMember(c.env.DB, roomId, memberId);
+  if (outcome === "not_found") return c.json({ error: "Not found" }, 404);
+  // The creator cannot remove themselves here; use DELETE /api/rooms to nuke it.
+  if (outcome === "is_creator") {
+    return c.json({ error: "Cannot remove the creator" }, 400);
+  }
+  return c.json({ ok: true });
+});
+
+app.delete("/api/rooms/:roomId", async (c) => {
+  const roomId = c.req.param("roomId");
+  const role = await memberRole(c.env.DB, roomId, c.req.header("Authorization"));
+  if (role === null) return c.json({ error: "Unauthorized" }, 401);
+  if (role !== "creator") return c.json({ error: "Forbidden" }, 403);
+  await deleteRoom(c.env.DB, roomId);
+  return c.body(null, 204);
 });
 
 app.post("/api/clipboard", async (c) => {

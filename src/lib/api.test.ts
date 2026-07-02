@@ -2,9 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   clearClipboard,
+  deleteRoom,
   joinRoom,
+  listMembers,
   pullClipboard,
   pushClipboard,
+  removeMember,
 } from "./api";
 
 function mockFetch(response: Response | (() => Response | Promise<Response>)) {
@@ -33,14 +36,20 @@ afterEach(() => {
 });
 
 describe("joinRoom", () => {
-  it("returns the join payload and posts roomId + capacity to /api/rooms", async () => {
+  it("posts roomId + capacity + mode and returns the role", async () => {
     const fetchMock = mockFetch(
-      json({ token: "tok", joined: 1, capacity: 2, sealed: false }),
+      json({ token: "tok", joined: 1, capacity: 2, sealed: false, role: "creator" }),
     );
-    const res = await joinRoom("room-1", 2);
+    const res = await joinRoom("room-1", 2, "create");
     expect(res).toEqual({
       ok: true,
-      value: { token: "tok", joined: 1, capacity: 2, sealed: false },
+      value: {
+        token: "tok",
+        joined: 1,
+        capacity: 2,
+        sealed: false,
+        role: "creator",
+      },
     });
     const [url, init] = lastCall(fetchMock);
     expect(url).toBe("/api/rooms");
@@ -48,17 +57,34 @@ describe("joinRoom", () => {
     expect(JSON.parse(init.body as string)).toEqual({
       roomId: "room-1",
       capacity: 2,
+      mode: "create",
     });
   });
 
-  it("maps 409 to a sealed error", async () => {
+  it("maps 409 to EXISTS on create and SEALED on join", async () => {
+    mockFetch(json({ error: "exists" }, 409));
+    expect(await joinRoom("r", 2, "create")).toEqual({
+      ok: false,
+      error: ApiError.EXISTS,
+    });
     mockFetch(json({ error: "sealed" }, 409));
-    expect(await joinRoom("r", 2)).toEqual({ ok: false, error: ApiError.SEALED });
+    expect(await joinRoom("r", 2, "join")).toEqual({
+      ok: false,
+      error: ApiError.SEALED,
+    });
+  });
+
+  it("maps 404 (join a missing room) to ROOM_NOT_FOUND", async () => {
+    mockFetch(json({ error: "not found" }, 404));
+    expect(await joinRoom("r", 2, "join")).toEqual({
+      ok: false,
+      error: ApiError.ROOM_NOT_FOUND,
+    });
   });
 
   it("maps 400 to a bad-request error", async () => {
     mockFetch(json({ error: "bad" }, 400));
-    expect(await joinRoom("r", 99)).toEqual({
+    expect(await joinRoom("r", 99, "create")).toEqual({
       ok: false,
       error: ApiError.BAD_REQUEST,
     });
@@ -68,9 +94,78 @@ describe("joinRoom", () => {
     mockFetch(() => {
       throw new TypeError("offline");
     });
-    expect(await joinRoom("r", 2)).toEqual({
+    expect(await joinRoom("r", 2, "join")).toEqual({
       ok: false,
       error: ApiError.NETWORK,
+    });
+  });
+});
+
+describe("creator-only room management", () => {
+  it("listMembers returns the members array and attaches the token", async () => {
+    const members = [
+      { id: 1, role: "creator", joinedAt: 10 },
+      { id: 2, role: "joiner", joinedAt: 20 },
+    ];
+    const fetchMock = mockFetch(json({ members }));
+    const res = await listMembers("room-1", "tok");
+    expect(res).toEqual({ ok: true, value: members });
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe("/api/rooms/room-1/members");
+    expect((init.headers as Record<string, string>).Authorization).toBe(
+      "Bearer tok",
+    );
+  });
+
+  it("listMembers maps 403 to FORBIDDEN and 401 to SLOT_LOST", async () => {
+    mockFetch(json({}, 403));
+    expect(await listMembers("r", "t")).toEqual({
+      ok: false,
+      error: ApiError.FORBIDDEN,
+    });
+    mockFetch(json({}, 401));
+    expect(await listMembers("r", "t")).toEqual({
+      ok: false,
+      error: ApiError.SLOT_LOST,
+    });
+  });
+
+  it("removeMember DELETEs the member path with the token", async () => {
+    const fetchMock = mockFetch(new Response(null, { status: 200 }));
+    const res = await removeMember("room-1", "tok", 7);
+    expect(res).toEqual({ ok: true, value: undefined });
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe("/api/rooms/room-1/members/7");
+    expect(init.method).toBe("DELETE");
+  });
+
+  it("removeMember maps 403 to FORBIDDEN", async () => {
+    mockFetch(json({}, 403));
+    expect(await removeMember("r", "t", 1)).toEqual({
+      ok: false,
+      error: ApiError.FORBIDDEN,
+    });
+  });
+
+  it("deleteRoom DELETEs the room path and returns ok on 204", async () => {
+    const fetchMock = mockFetch(new Response(null, { status: 204 }));
+    const res = await deleteRoom("room-1", "tok");
+    expect(res).toEqual({ ok: true, value: undefined });
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe("/api/rooms/room-1");
+    expect(init.method).toBe("DELETE");
+  });
+
+  it("deleteRoom maps 403 to FORBIDDEN and 401 to SLOT_LOST", async () => {
+    mockFetch(json({}, 403));
+    expect(await deleteRoom("r", "t")).toEqual({
+      ok: false,
+      error: ApiError.FORBIDDEN,
+    });
+    mockFetch(json({}, 401));
+    expect(await deleteRoom("r", "t")).toEqual({
+      ok: false,
+      error: ApiError.SLOT_LOST,
     });
   });
 });

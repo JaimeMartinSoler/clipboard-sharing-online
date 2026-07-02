@@ -79,81 +79,217 @@ export async function lazyExpireRoom(
   ]);
 }
 
+/** A member's role within a room. The creator is the first member. */
+export type MemberRole = "creator" | "joiner";
+
+/** How a POST /api/rooms request wants to obtain a slot. */
+export type JoinMode = "create" | "join";
+
 export interface JoinResult {
-  /** Whether a slot was granted (false ⇒ the room is sealed). */
+  /** Whether a slot was granted (false ⇒ see `reason`). */
   joined: boolean;
   /** Your 1-based terminal number after joining (== current member count). */
   slot: number;
-  /** The room's capacity (set by whoever joined first). */
+  /** The room's capacity (set by the creator). */
   capacity: number;
+  /** Whether the room is sealed (full, or was full and is now locked). */
+  sealed: boolean;
+  /** The role this member holds (only meaningful when `joined`). */
+  role: MemberRole;
+  /** Why a join was refused (only meaningful when `joined === false`). */
+  reason?: "sealed" | "not_found" | "exists";
+}
+
+interface RoomStat {
+  capacity: number;
+  sealed: number;
+  members: number;
 }
 
 /**
- * Atomically join (or create) a room and claim a slot.
+ * Atomically obtain a slot in a room, either creating it (`mode: "create"`, the
+ * caller becomes the `creator`) or joining an existing one (`mode: "join"`, the
+ * caller becomes a `joiner`).
  *
  * The whole thing runs as one D1 batch (a single transaction). Because D1
  * serializes write transactions, the conditional member INSERT — guarded by
- * `COUNT(members) < capacity` evaluated inside the statement — can never
- * over-seal past capacity even under a race for the last slot (no TOCTOU).
+ * `sealed = 0 AND COUNT(members) < capacity` evaluated inside the statement —
+ * can never over-seal past capacity even under a race for the last slot (no
+ * TOCTOU). A separate UPDATE in the same batch flips `sealed` to 1 the instant
+ * capacity is reached; `sealed` is never reset, so removing a joiner later does
+ * NOT reopen the slot.
  *
  * Steps: drop the room if it is an expired shell (so reusing a password after
- * TTL yields a fresh, unsealed room) and its orphaned members; create the room
- * on first contact with the requested capacity; insert the member only if a slot
- * is free; then read back capacity + member count. The caller stores only
- * `tokenHash`; the raw token is returned to the client once and never persisted.
- *
- * The read-back is the LAST statement of the same batch, so it observes exactly
- * this transaction's view — including this joiner's insert but not concurrent
- * uncommitted ones. That keeps the reported `slot`/`sealed` consistent with the
- * insert under a race; reading it in a separate statement after commit could
- * observe a later joiner and inflate the terminal number.
+ * TTL yields a fresh, unsealed room) and its orphaned members; on create,
+ * insert the room (idempotently) and, only if it has no members yet, the creator;
+ * on join, insert a joiner only if the room is live, unsealed, and has a free
+ * slot; seal if now full; then read back capacity/sealed/member-count in the
+ * SAME transaction so the reported slot is this joiner's, not a later racer's.
  */
-export async function joinRoom(
+export async function allocateSlot(
   db: D1Database,
+  mode: JoinMode,
   roomId: string,
   capacity: number,
   tokenHash: string,
   now: number,
   ttlMs: number,
 ): Promise<JoinResult> {
+  const role: MemberRole = mode === "create" ? "creator" : "joiner";
   const expiresAt = now + ttlMs;
-  const results = await db.batch([
-    db
-      .prepare("DELETE FROM rooms WHERE room_id = ? AND expires_at <= ?")
-      .bind(roomId, now),
-    db
-      .prepare(
-        "DELETE FROM members WHERE room_id = ? AND NOT EXISTS (SELECT 1 FROM rooms WHERE rooms.room_id = members.room_id)",
-      )
-      .bind(roomId),
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO rooms (room_id, capacity, ciphertext, iv, created_at, expires_at) VALUES (?, ?, NULL, NULL, ?, ?)",
-      )
-      .bind(roomId, capacity, now, expiresAt),
-    db
-      .prepare(
-        "INSERT INTO members (room_id, token_hash, joined_at) SELECT ?, ?, ? WHERE (SELECT COUNT(*) FROM members WHERE room_id = ?) < (SELECT capacity FROM rooms WHERE room_id = ?)",
-      )
-      .bind(roomId, tokenHash, now, roomId, roomId),
-    db
-      .prepare(
-        "SELECT capacity, (SELECT COUNT(*) FROM members WHERE room_id = ?) AS members FROM rooms WHERE room_id = ?",
-      )
-      .bind(roomId, roomId),
-  ]);
 
-  const joined = (results[3]?.meta.changes ?? 0) > 0;
-  const stat = (results[4]?.results?.[0] ?? null) as {
-    capacity: number;
-    members: number;
-  } | null;
+  const dropExpired = db
+    .prepare("DELETE FROM rooms WHERE room_id = ? AND expires_at <= ?")
+    .bind(roomId, now);
+  const dropOrphans = db
+    .prepare(
+      "DELETE FROM members WHERE room_id = ? AND NOT EXISTS (SELECT 1 FROM rooms WHERE rooms.room_id = members.room_id)",
+    )
+    .bind(roomId);
+  const seal = db
+    .prepare(
+      "UPDATE rooms SET sealed = 1 WHERE room_id = ? AND (SELECT COUNT(*) FROM members WHERE room_id = ?) >= capacity",
+    )
+    .bind(roomId, roomId);
+  const readBack = db
+    .prepare(
+      "SELECT capacity, sealed, (SELECT COUNT(*) FROM members WHERE room_id = ?) AS members FROM rooms WHERE room_id = ?",
+    )
+    .bind(roomId, roomId);
 
+  let insertIndex: number;
+  let statements: D1PreparedStatement[];
+
+  if (mode === "create") {
+    // Create the room on first contact; add the creator only if the room has no
+    // members yet. If a live room with the same id already exists (someone
+    // already created it), the creator INSERT changes 0 rows ⇒ reason "exists".
+    const createRoom = db
+      .prepare(
+        "INSERT OR IGNORE INTO rooms (room_id, capacity, ciphertext, iv, created_at, expires_at, sealed) VALUES (?, ?, NULL, NULL, ?, ?, 0)",
+      )
+      .bind(roomId, capacity, now, expiresAt);
+    const insertCreator = db
+      .prepare(
+        "INSERT INTO members (room_id, token_hash, joined_at, role) SELECT ?, ?, ?, 'creator' WHERE EXISTS (SELECT 1 FROM rooms WHERE room_id = ? AND expires_at > ?) AND (SELECT COUNT(*) FROM members WHERE room_id = ?) = 0",
+      )
+      .bind(roomId, tokenHash, now, roomId, now, roomId);
+    insertIndex = 3;
+    statements = [dropExpired, dropOrphans, createRoom, insertCreator, seal, readBack];
+  } else {
+    // Never create the room on join. Insert a joiner only into a live, unsealed
+    // room with a free slot. Failure with a room present ⇒ "sealed"; absent ⇒
+    // "not_found".
+    const insertJoiner = db
+      .prepare(
+        "INSERT INTO members (room_id, token_hash, joined_at, role) SELECT ?, ?, ?, 'joiner' WHERE EXISTS (SELECT 1 FROM rooms WHERE room_id = ? AND expires_at > ?) AND (SELECT sealed FROM rooms WHERE room_id = ?) = 0 AND (SELECT COUNT(*) FROM members WHERE room_id = ?) < (SELECT capacity FROM rooms WHERE room_id = ?)",
+      )
+      .bind(roomId, tokenHash, now, roomId, now, roomId, roomId, roomId);
+    insertIndex = 2;
+    statements = [dropExpired, dropOrphans, insertJoiner, seal, readBack];
+  }
+
+  const results = await db.batch(statements);
+  const joined = (results[insertIndex]?.meta.changes ?? 0) > 0;
+  const stat = (results[results.length - 1]?.results?.[0] ?? null) as
+    | RoomStat
+    | null;
+
+  if (joined) {
+    return {
+      joined: true,
+      slot: stat?.members ?? 1,
+      capacity: stat?.capacity ?? capacity,
+      sealed: (stat?.sealed ?? 0) === 1,
+      role,
+    };
+  }
+
+  // Refused: classify why so the API can pick the right status code.
+  let reason: JoinResult["reason"];
+  if (stat === null) {
+    reason = "not_found";
+  } else if (mode === "create") {
+    reason = "exists";
+  } else {
+    reason = "sealed";
+  }
   return {
-    joined,
+    joined: false,
     slot: stat?.members ?? 0,
     capacity: stat?.capacity ?? capacity,
+    sealed: (stat?.sealed ?? 0) === 1,
+    role,
+    reason,
   };
+}
+
+export interface MemberRecord {
+  id: number;
+  role: MemberRole;
+  joinedAt: number;
+}
+
+/** List a room's members (id, role, join time) ordered oldest-first. No PII. */
+export async function listMembers(
+  db: D1Database,
+  roomId: string,
+): Promise<MemberRecord[]> {
+  const res = await db
+    .prepare(
+      "SELECT id, role, joined_at AS joinedAt FROM members WHERE room_id = ? ORDER BY joined_at ASC, id ASC",
+    )
+    .bind(roomId)
+    .all<MemberRecord>();
+  return res.results ?? [];
+}
+
+/** The role bound to a token hash in a room, or null if it is not a member. */
+export async function getMemberRole(
+  db: D1Database,
+  roomId: string,
+  tokenHash: string,
+): Promise<MemberRole | null> {
+  const row = await db
+    .prepare(
+      "SELECT role FROM members WHERE room_id = ? AND token_hash = ? LIMIT 1",
+    )
+    .bind(roomId, tokenHash)
+    .first<{ role: MemberRole }>();
+  return row?.role ?? null;
+}
+
+export type RemoveMemberResult = "removed" | "not_found" | "is_creator";
+
+/**
+ * Remove a single joiner from a room, revoking their token. The seal flag is
+ * deliberately left untouched: the freed slot does NOT reopen (see migration
+ * 0002). The creator can never be removed this way.
+ */
+export async function removeMember(
+  db: D1Database,
+  roomId: string,
+  memberId: number,
+): Promise<RemoveMemberResult> {
+  const target = await db
+    .prepare("SELECT role FROM members WHERE id = ? AND room_id = ? LIMIT 1")
+    .bind(memberId, roomId)
+    .first<{ role: MemberRole }>();
+  if (!target) return "not_found";
+  if (target.role === "creator") return "is_creator";
+  await db
+    .prepare("DELETE FROM members WHERE id = ? AND room_id = ?")
+    .bind(memberId, roomId)
+    .run();
+  return "removed";
+}
+
+/** Nuke a room entirely: its blob, its members, everything. Idempotent. */
+export async function deleteRoom(db: D1Database, roomId: string): Promise<void> {
+  await db.batch([
+    db.prepare("DELETE FROM rooms WHERE room_id = ?").bind(roomId),
+    db.prepare("DELETE FROM members WHERE room_id = ?").bind(roomId),
+  ]);
 }
 
 /** True if a token hash matches a live membership of the room. */

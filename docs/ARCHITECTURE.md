@@ -33,7 +33,10 @@ a substitute for it.
 │  └─ lib/
 │     ├─ result.ts         # Result<T> type
 │     ├─ crypto.ts         # KDF + AES-GCM (pure, WebCrypto + hash-wasm) + tests
-│     └─ api.ts            # typed fetch client for the Worker + tests
+│     ├─ api.ts            # typed fetch client for the Worker + tests
+│     ├─ room-link.ts      # #p=… share-link encode/decode (fragment only) + tests
+│     ├─ qr.ts             # vendored no-network QR→SVG encoder + tests
+│     └─ datetime.ts       # YYYY-MM-DD HH:mm:SS formatter + tests
 ├─ next.config.mjs         # output:'export', images.unoptimized, hash workaround
 ├─ docs/                   # SPEC, ARCHITECTURE, SECURITY, IMPLEMENTATION_PROMPT
 ├─ pnpm-workspace.yaml     # packages: ['worker']; onlyBuiltDependencies/allowBuilds
@@ -76,6 +79,18 @@ transmitted except where noted.
 {roomId, contentKey}`, `encrypt(contentKey, plaintext) → {ciphertext, iv}`,
 `decrypt(contentKey, {ciphertext, iv}) → Result<string>`. No React/DOM imports.
 
+### Share links & auto-join (fragment only)
+The creator's **Share** button and **QR** encode `https://<origin>/#p=<base64url(password)>`.
+The password rides in the URL **fragment** (`#…`), the one part of a URL a
+browser never puts on the wire — it is not in the HTTP request line and not
+beaconed by Cloudflare Web Analytics. `base64url` is transport encoding only
+(reversible): **sharing the link is sharing decryption ability**, exactly the
+intent. On load the app reads `location.hash`, auto-joins (`mode:"join"`), and
+immediately **scrubs the fragment** from the address bar (`history.replaceState`)
+so it doesn't linger in history or on screen. The QR is produced by a vendored,
+dependency-free encoder (`src/lib/qr.ts`) rendered as **inline SVG** — no network,
+CSP-safe. See `src/lib/room-link.ts` and `docs/SECURITY.md`.
+
 ## API (Worker, Hono)
 Same-origin under the Pages custom domain via a Worker route on `/api/*` (no
 CORS). If deployed on `*.workers.dev` instead, add a strict CORS allowlist for
@@ -83,29 +98,39 @@ the Pages origin.
 
 | Method & path                | Body / params · auth       | Behaviour |
 | ---------------------------- | -------------------------- | --------- |
-| `POST /api/rooms`            | `{ roomId, capacity? }`    | Join/create. Atomically create the room (if absent) with `capacity` (default 2, clamped 1–10) or join an existing one; allocate a slot only while `members < capacity`. Returns `{ token, joined, capacity, sealed }`. `409` once sealed; `400` on bad `capacity`. |
+| `POST /api/rooms`            | `{ roomId, mode, capacity? }` | Obtain a slot. `mode:"create"` makes the caller the **creator** and sets `capacity` (default 2, clamped 1–10); `mode:"join"` (default if omitted) claims a **joiner** slot in an existing room. Slot granted only while `sealed=0 AND members < capacity`. Returns `{ token, joined, capacity, sealed, role }`. `409` when sealed or on a create collision (`{exists:true}`); `404` when joining a room that doesn't exist; `400` on bad `mode`/`capacity`. |
 | `POST /api/clipboard`        | `{ roomId, ciphertext, iv }` · Bearer token | Validate token↔room, shape, and size cap; rate-limit; `INSERT OR REPLACE` blob with `expires_at=now+TTL`. Returns `{ ok, expiresAt }`. `401` without a valid token. |
 | `GET /api/clipboard/:roomId` | path `roomId` · Bearer token | Validate token↔room. Select where `room_id=? AND expires_at>now`. If expired, lazy-delete and return 404. Returns `{ ciphertext, iv, expiresAt }` or 404. `401` without a valid token. |
 | `DELETE /api/clipboard/:roomId` | path `roomId` · Bearer token | Clear the blob. Always returns 204 (no existence oracle). `401` without a valid token. |
+| `GET /api/rooms/:roomId/members` | path `roomId` · Bearer token | **Creator-only.** List members `[{ id, role, joinedAt }]` (no IP/PII). `401` non-member, `403` joiner. |
+| `DELETE /api/rooms/:roomId/members/:id` | path · Bearer token | **Creator-only.** Revoke a joiner's token (its slot stays **sealed** — does not reopen). `200` ok, `400` if id targets the creator, `404` unknown id, `401`/`403` as above. |
+| `DELETE /api/rooms/:roomId` | path `roomId` · Bearer token | **Creator-only.** Nuke the room, its members, and its blob. `204`. `401`/`403` as above. |
 
 Cross-cutting: max ciphertext size (reject oversized with 413), per-IP rate
 limiting (Cloudflare Rate Limiting rule and/or in-Worker counter), JSON-shape
 validation, and uniform error responses that don't leak room existence.
 
-### Membership & sealing
+### Membership, roles & sealing
+- **Create vs join, enforced server-side.** `mode:"create"` inserts the sole
+  `creator` (only into a room with no members yet — a second create on the same
+  live `room_id` returns `409 {exists:true}`); `mode:"join"` inserts a `joiner`
+  only into an existing, unsealed room. The role lives in `members.role` and
+  gates the creator-only endpoints (a joiner gets `403`), never just the view.
 - **Atomic slot allocation.** `POST /api/rooms` runs inside a D1 transaction so a
-  slot is granted only when `COUNT(members WHERE room_id) < capacity`; two
-  terminals racing for the last slot cannot both win (no over-seal, no TOCTOU).
-  The first caller for a fresh `room_id` creates the room and sets `capacity`.
-- **Tokens are bearer credentials.** On join the Worker generates a random,
+  slot is granted only when `sealed=0 AND COUNT(members WHERE room_id) < capacity`;
+  two terminals racing for the last slot cannot both win (no over-seal, no TOCTOU).
+- **Tokens are bearer credentials.** On create/join the Worker generates a random,
   high-entropy token, stores only its **SHA-256 hash** in `members`, and returns
   the raw token once. The client keeps it **in memory only** (no localStorage —
   strict policy). Every clipboard op must present it; the Worker authorizes by
   hashing the presented token and matching a `members` row for that room.
-- **Sealing is permanent for the room instance.** Once `members == capacity` the
-  room is sealed; further `POST /api/rooms` returns `409`. Sealing is revealed
-  only to a caller who already knows the password (they had to derive `room_id`),
-  so it is not an existence oracle for outsiders.
+- **Sealing is an explicit, permanent flag.** `rooms.sealed` flips to `1` the
+  instant `members` first reaches `capacity` (same transaction as the insert) and
+  is **never reset for that room instance**. Join checks `sealed=0`, so a creator
+  **removing** a joiner (which drops the member count) does **not** reopen the
+  slot — the revoked token simply stops authorizing. Further `POST /api/rooms`
+  on a sealed room returns `409`. Sealing is revealed only to a caller who already
+  knows the password (they derived `room_id`), so it is not an existence oracle.
 - **Expiry clears everything together.** `rooms`, its `members`, and the blob
   share one `expires_at`; lazy delete on read and the cron sweep remove all of
   them, so a sealed room — and every membership in it — vanishes at TTL. Reusing
@@ -132,10 +157,15 @@ CREATE TABLE IF NOT EXISTS members (
 );
 CREATE INDEX IF NOT EXISTS idx_members_room ON members(room_id);
 CREATE INDEX IF NOT EXISTS idx_rooms_expires ON rooms(expires_at);
+
+-- worker/migrations/0002_roles_sealed.sql  (issue #7)
+ALTER TABLE rooms   ADD COLUMN sealed INTEGER NOT NULL DEFAULT 0;      -- 1 once full, never reset
+ALTER TABLE members ADD COLUMN role   TEXT    NOT NULL DEFAULT 'joiner'; -- 'creator' | 'joiner'
 ```
 One `rooms` row per room (latest clipboard only) plus one `members` row per
-joined terminal. A room is **sealed** when
-`COUNT(members WHERE room_id) >= rooms.capacity`. `ciphertext`/`iv` are null
+joined terminal — the first being the `creator`. A room is **sealed** once
+`rooms.sealed = 1` (set when `COUNT(members) >= capacity`, then permanent so a
+removed joiner never reopens a slot). `ciphertext`/`iv` are null
 between joining and the first push. D1's primary gives strongly consistent
 reads, so a Push — and a freshly allocated slot — is visible to an immediate
 follow-up request, the property KV could not guarantee.
@@ -168,13 +198,19 @@ Shared by crypto and API-client modules; UI renders the error in the
 ## Testing
 - **Frontend (Vitest):** crypto round-trip, wrong-password-fails, determinism
   (`deriveKeys` is stable for a password and differs across passwords), base64url
-  edge cases, unicode, and size-limit handling in the API client.
+  edge cases, unicode, and size-limit handling in the API client. Plus the API
+  client's create/join `mode`, role, and creator-only calls; `room-link`
+  fragment round-trip (password never in path/query); `qr` structural invariants
+  (finder patterns, timing track, version selection); and the datetime formatter.
 - **Worker (`@cloudflare/vitest-pool-workers`):** upsert→get round-trip against a
   local D1, 404 on missing/expired, size-cap rejection, DELETE idempotency, and
-  the cron sweep removing expired rows. Plus membership: atomic cap enforcement
-  (concurrent joins never over-seal past `capacity`), `409` once sealed, `400` on
-  bad `capacity`, `401` on clipboard ops without a valid Bearer token, and the
-  sweep deleting a room's `members` alongside it.
+  the cron sweep removing expired rows. Plus membership: create/join roles, atomic
+  cap enforcement (concurrent joins never over-seal past `capacity`), the explicit
+  `sealed` flag surviving a revoke (removed joiner does not reopen the slot),
+  `409` once sealed / on a create collision, `404` joining a missing room, `400`
+  on bad `mode`/`capacity`, creator-only auth (`401` non-member, `403` joiner) on
+  the members/revoke/delete-room endpoints, `401` on clipboard ops without a valid
+  Bearer token, and the sweep deleting a room's `members` alongside it.
 
 ## Deployment
 Two fully decoupled environments, each same-origin on one host (Worker route wins
