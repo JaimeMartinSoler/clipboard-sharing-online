@@ -9,5 +9,6 @@
 -- `members.role` records who created the room vs who joined it. The creator is
 -- the first member; only the creator may list members, remove a joiner, or nuke
 -- the room. Enforced at the Worker/DB layer, not just the view.
+-- `members.role` is 'creator' | 'joiner'.
 ALTER TABLE rooms   ADD COLUMN sealed INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE members ADD COLUMN role   TEXT    NOT NULL DEFAULT 'joiner'; -- 'creator' | 'joiner'
+ALTER TABLE members ADD COLUMN role   TEXT    NOT NULL DEFAULT 'joiner';
