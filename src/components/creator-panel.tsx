@@ -21,8 +21,9 @@ import { buildShareUrl } from "@/lib/room-link";
  * convenience on top of the server-side creator checks: a joiner who forged this
  * UI still gets 403/401 from the Worker.
  *
- * - A live table of who is in the room (role + join time), with a Remove button
- *   per joiner. Removing revokes that token; the sealed slot does NOT reopen.
+ * - An on-demand table of who is in the room (role + join time), refreshed on
+ *   mount and via the Refresh button, with a Remove button per joiner. Removing
+ *   revokes that token; the sealed slot does NOT reopen.
  * - Share the auto-join link (password lives in the URL *fragment*, never sent
  *   to the server) and a QR of the same link for phones.
  * - Nuke the whole room (blob + members).

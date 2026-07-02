@@ -39,9 +39,9 @@ The creator gets extra tools (enforced at the server, not just the UI):
 - **Share** a one-tap auto-join link and a **QR** of it. The password rides in
   the URL **fragment** (`…/#p=…`), which browsers never send to the server, so
   sharing the link shares decryption ability without leaking to logs/analytics.
-- A live **Terminals** table (role + connected time; **no IPs are stored**) with
-  a **Remove** button to revoke a joiner. A revoked slot stays sealed — it never
-  reopens for a stranger.
+- An on-demand **Terminals** table (role + connected time; **no IPs are stored**;
+  refresh on demand) with a **Remove** button to revoke a joiner. A revoked slot
+  stays sealed — it never reopens for a stranger.
 - **Remove room** to delete the content, all members, and the room instantly.
 
 ### Crypto, in one paragraph
