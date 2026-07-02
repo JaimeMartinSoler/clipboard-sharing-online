@@ -56,28 +56,41 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   passphrases.
 - **No live sync.** The user drives sharing with explicit **Push** (encrypt →
   upload, replacing the room's blob) and **Pull** (download → decrypt) buttons.
-- **Terminal cap (seal-on-full).** The room creator sets `capacity` (default 2,
-  clamped 1–10). Terminals **join** to claim a slot; when full the room is
-  **sealed** — no further join, ever, for that room instance. This is a
-  defense-in-depth access layer on top of the E2EE (see `docs/SECURITY.md`),
-  never a substitute. Slot allocation is **atomic** (D1 transaction, no
-  over-seal). Joining returns a random bearer **token**; the server stores only
-  its **SHA-256 hash**. The client keeps the token **in memory only** — strict,
-  no persistence: a reload/closed tab forfeits the slot (it still counts against
-  the cap, so a sealed room locks the user out until TTL).
-- **API surface** (`worker/`): `POST /api/rooms` (join/create, atomic slot
-  allocation, `409` when sealed, returns `{token, joined, capacity, sealed}`);
-  `POST /api/clipboard` (upsert ciphertext+iv, set `expires_at`); `GET
+- **Create/Join roles + terminal cap (seal-on-full).** One device **creates** the
+  room (`mode:"create"`, becomes the sole `creator`, sets `capacity`, default 2,
+  clamped 1–10); others **join** (`mode:"join"`, `joiner`). When full the room is
+  **sealed** (`rooms.sealed=1`, set atomically, **never reset**) — no further
+  join, ever, for that room instance. This is a defense-in-depth access layer on
+  top of the E2EE (see `docs/SECURITY.md`), never a substitute. Slot allocation
+  is **atomic** (D1 transaction, no over-seal). Create/Join returns a random
+  bearer **token**; the server stores only its **SHA-256 hash** + role. The client
+  keeps the token **in memory only** — strict, no persistence: a reload/closed tab
+  forfeits the slot (it still counts against the cap). The creator may **revoke** a
+  joiner (deletes the member row) but the slot stays sealed and does not reopen.
+- **API surface** (`worker/`): `POST /api/rooms` (`mode:"create"|"join"`, atomic
+  slot allocation, `409` when sealed / on a create collision, `404` joining a
+  missing room, returns `{token, joined, capacity, sealed, role}`); `POST
+  /api/clipboard` (upsert ciphertext+iv, set `expires_at`); `GET
   /api/clipboard/:roomId` (fetch latest, 404 if missing/expired); `DELETE
-  /api/clipboard/:roomId` (clear). All three clipboard ops **require the Bearer
-  membership token** (`401` otherwise). Serve the API under the same custom
-  domain as Pages (`/api/*` route) so it is **same-origin** — no CORS. Document a
-  CORS allowlist fallback if hosted on `*.workers.dev`.
-- **D1 schema.** `rooms`: `room_id` (PK, opaque), `capacity`, `ciphertext`/`iv`
-  (nullable until first push), `created_at`, `expires_at`. `members`: `id`,
-  `room_id`, `token_hash`, `joined_at`. Sealed ⇔ member count ≥ capacity.
+  /api/clipboard/:roomId` (clear) — all three clipboard ops **require the Bearer
+  membership token** (`401` otherwise). **Creator-only** (`403` for a joiner):
+  `GET /api/rooms/:roomId/members` (list `{id, role, joinedAt}`, no IP/PII),
+  `DELETE /api/rooms/:roomId/members/:id` (revoke a joiner), `DELETE
+  /api/rooms/:roomId` (nuke room+members+blob). Serve the API under the same
+  custom domain as Pages (`/api/*` route) so it is **same-origin** — no CORS.
+  Document a CORS allowlist fallback if hosted on `*.workers.dev`.
+- **Share links / auto-join.** The creator's Share button + QR encode
+  `https://<origin>/#p=<base64url(password)>`. The password rides in the URL
+  **fragment only** — never the path/query, which would leak it to the edge,
+  analytics, and logs. The app auto-joins on load then scrubs the fragment. The
+  QR uses a vendored, dependency-free encoder (`src/lib/qr.ts`) as inline SVG.
+- **D1 schema.** `rooms`: `room_id` (PK, opaque), `capacity`, `sealed`,
+  `ciphertext`/`iv` (nullable until first push), `created_at`, `expires_at`.
+  `members`: `id`, `room_id`, `token_hash`, `role`, `joined_at`. Sealed ⇔
+  `rooms.sealed=1` (set when member count first ≥ capacity; write-once).
   `INSERT OR REPLACE` on push; index `expires_at` and `members.room_id`. Room,
-  members, and blob expire together (lazy delete + cron).
+  members, and blob expire together (lazy delete + cron). Migrations:
+  `0001_init.sql`, `0002_roles_sealed.sql`.
 
 ## Conventions
 - TypeScript **strict**, no `any`. Pure logic returns `Result<T>`

@@ -37,6 +37,7 @@ interface SeedRoomOptions {
   ciphertext?: string | null;
   iv?: string | null;
   expiresAt?: number;
+  sealed?: 0 | 1;
 }
 
 export async function seedRoom(
@@ -45,7 +46,7 @@ export async function seedRoom(
 ): Promise<void> {
   const now = Date.now();
   await env.DB.prepare(
-    "INSERT OR REPLACE INTO rooms (room_id, capacity, ciphertext, iv, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)",
+    "INSERT OR REPLACE INTO rooms (room_id, capacity, ciphertext, iv, created_at, expires_at, sealed) VALUES (?, ?, ?, ?, ?, ?, ?)",
   )
     .bind(
       roomId,
@@ -54,6 +55,7 @@ export async function seedRoom(
       opts.iv ?? null,
       now,
       opts.expiresAt ?? now + 600_000,
+      opts.sealed ?? 0,
     )
     .run();
 }
@@ -62,13 +64,38 @@ export async function seedRoom(
 export async function seedMember(
   roomId: string,
   token = "test-token-default",
+  role: "creator" | "joiner" = "joiner",
 ): Promise<string> {
   await env.DB.prepare(
-    "INSERT INTO members (room_id, token_hash, joined_at) VALUES (?, ?, ?)",
+    "INSERT INTO members (room_id, token_hash, joined_at, role) VALUES (?, ?, ?, ?)",
   )
-    .bind(roomId, await sha256hex(token), Date.now())
+    .bind(roomId, await sha256hex(token), Date.now(), role)
     .run();
   return token;
+}
+
+/** The auto-increment id of a seeded member (to target member-scoped routes). */
+export async function memberId(
+  roomId: string,
+  token: string,
+): Promise<number> {
+  const row = await env.DB.prepare(
+    "SELECT id FROM members WHERE room_id = ? AND token_hash = ? LIMIT 1",
+  )
+    .bind(roomId, await sha256hex(token))
+    .first<{ id: number }>();
+  if (!row) throw new Error("member not found");
+  return row.id;
+}
+
+/** Read the sealed flag for a room (0/1), or null if the room is gone. */
+export async function roomSealed(roomId: string): Promise<number | null> {
+  const row = await env.DB.prepare(
+    "SELECT sealed FROM rooms WHERE room_id = ?",
+  )
+    .bind(roomId)
+    .first<{ sealed: number }>();
+  return row?.sealed ?? null;
 }
 
 export function bearer(token: string, ip = "1.1.1.1"): HeadersInit {

@@ -18,12 +18,12 @@ encryption**.
 
 ## How it works
 
-1. Open the site on two devices.
-2. Type the **same password** on both (a long passphrase — strength matters).
-   On the first device, optionally set **how many terminals** may share the room
-   (default 2).
-3. **Join** the room on both devices. Joining claims a slot; once full the room
-   is **sealed** — no further terminal can ever join *that* room instance.
+1. Open the site and type a **long shared password** (strength matters).
+2. On one device, **Create** the room — you become its **creator** and set **how
+   many terminals** may share it (default 2). On the others, **Join** with the
+   same password (or open the creator's share link, which joins automatically).
+3. Joining claims a slot; once full the room is **sealed** — no further terminal
+   can ever join *that* room instance.
 4. On device A: paste/type text → **Push** (encrypted in your browser, then
    uploaded).
 5. On device B: **Pull** (the blob is downloaded and decrypted in your browser).
@@ -31,6 +31,18 @@ encryption**.
    either way.
 6. The blob (and the whole room) auto-expires after a short TTL; **Clear**
    removes it immediately.
+
+### Creator controls
+
+The creator gets extra tools (enforced at the server, not just the UI):
+
+- **Share** a one-tap auto-join link and a **QR** of it. The password rides in
+  the URL **fragment** (`…/#p=…`), which browsers never send to the server, so
+  sharing the link shares decryption ability without leaking to logs/analytics.
+- A live **Terminals** table (role + connected time; **no IPs are stored**) with
+  a **Remove** button to revoke a joiner. A revoked slot stays sealed — it never
+  reopens for a stranger.
+- **Remove room** to delete the content, all members, and the room instantly.
 
 ### Crypto, in one paragraph
 
@@ -47,9 +59,10 @@ derivation is deterministic and the salt is fixed — see
 
 - **Encrypt before egress.** All content is AES-GCM-256 encrypted client-side
   *before* any network call.
-- **Zero-knowledge server.** Stored columns: `room_id`, `capacity`,
-  `ciphertext`, `iv`, `created_at`, `expires_at`, plus membership **token
-  hashes** — never the password, keys, or plaintext.
+- **Zero-knowledge server.** Stored columns: `room_id`, `capacity`, `sealed`,
+  `ciphertext`, `iv`, `created_at`, `expires_at`, plus per-member **token
+  hashes** and a `creator`/`joiner` **role** — never the password, keys,
+  plaintext, or IP addresses.
 - **Ephemeral.** Rooms, memberships, and blobs share one TTL and auto-expire
   (lazy delete on read + a cleanup cron).
 - **Strict CSP.** [`public/_headers`](public/_headers) limits `connect-src` to

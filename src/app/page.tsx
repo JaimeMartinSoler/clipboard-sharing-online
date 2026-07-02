@@ -1,5 +1,5 @@
-import { ClipboardTool } from "@/components/clipboard-tool";
+import { ClipboardApp } from "@/components/clipboard-app";
 
 export default function HomePage() {
-  return <ClipboardTool />;
+  return <ClipboardApp />;
 }
