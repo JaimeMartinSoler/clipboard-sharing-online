@@ -5,8 +5,8 @@
     "module": "ES2022",
     "moduleResolution": "bundler",
     "types": [
-      "@cloudflare/workers-types/2023-07-01",
-      "@cloudflare/vitest-pool-workers"
+      "@cloudflare/workers-types/latest",
+      "@cloudflare/vitest-pool-workers/types"
     ],
     "strict": true,
     "noUncheckedIndexedAccess": true,
