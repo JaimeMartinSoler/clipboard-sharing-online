@@ -6,8 +6,16 @@ import { PasswordStrengthMeter } from "@/components/password-strength-meter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import type { SyncMode } from "@/lib/api";
 
 export const CAPACITY_OPTIONS = [2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+/** Creator-facing labels for the room's sync mode (fixed at creation). */
+export const SYNC_MODE_OPTIONS: { value: SyncMode; label: string }[] = [
+  { value: "push", label: "Live — Push to send" },
+  { value: "typing", label: "Live — sync as you type" },
+  { value: "manual", label: "Manual — Push & Pull" },
+];
 
 /** Busy states the entry view cares about. */
 export type EntryBusy = "create" | "join" | null;
@@ -24,6 +32,8 @@ export function RoomEntry({
   onToggleShowPassword,
   capacity,
   onCapacityChange,
+  syncMode,
+  onSyncModeChange,
   busy,
   onCreate,
   onJoin,
@@ -34,6 +44,8 @@ export function RoomEntry({
   onToggleShowPassword: () => void;
   capacity: number;
   onCapacityChange: (value: number) => void;
+  syncMode: SyncMode;
+  onSyncModeChange: (value: SyncMode) => void;
   busy: EntryBusy;
   onCreate: () => void;
   onJoin: () => void;
@@ -111,6 +123,27 @@ export function RoomEntry({
                 {CAPACITY_OPTIONS.map((n) => (
                   <option key={n} value={n}>
                     {n}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label
+              htmlFor="sync-mode"
+              className="flex flex-col gap-1 text-xs text-muted-foreground"
+            >
+              Sharing
+              <Select
+                id="sync-mode"
+                containerClassName="w-full"
+                className="w-full"
+                value={syncMode}
+                onChange={(e) => onSyncModeChange(e.target.value as SyncMode)}
+                aria-label="Sharing"
+                title="How text reaches the other terminals. Live modes deliver instantly over an encrypted connection; Manual keeps explicit Push and Pull only. Fixed for the room's lifetime."
+              >
+                {SYNC_MODE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </Select>

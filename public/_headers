@@ -3,15 +3,21 @@
 # same-origin Worker API bound at `/api/*` — and to Cloudflare Web Analytics.
 # Nothing else, and never plaintext or the password.
 #
+# The two wss:// entries are the live-sync WebSocket to that SAME origin
+# (prod + the develop staging domain — one _headers file ships to both).
+# They are listed explicitly, not as a bare `wss:` (which would allow
+# arbitrary-host egress) and not left to 'self' (whose ws/wss coverage is
+# inconsistent across browsers).
+#
 # If you instead host the Worker API on `*.workers.dev` (cross-origin from
-# Pages), add that exact origin to `connect-src` here.
+# Pages), add that exact origin (https:// and wss://) to `connect-src` here.
 #
 # 'wasm-unsafe-eval' is required to compile the Argon2id hash-wasm module in the
 # browser. 'unsafe-inline' for script/style is required by Next.js's static
 # runtime. Neither weakens the user-data guarantee — that is enforced by
 # `connect-src` allowing only 'self' plus the anonymous-analytics origin.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://cloudflareinsights.com wss://clipboard-sharing-online.com wss://develop.clipboard-sharing-online.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
   Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
