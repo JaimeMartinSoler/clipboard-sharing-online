@@ -40,9 +40,12 @@ terminal cap is an access-control layer *on top of* the encryption (see
 .                          # package "web": Next.js 15 static-export frontend
 ├─ src/
 │  ├─ app/                 # App Router: page.tsx (the tool), privacy/, layout.tsx
+│  │                       #   + SEO metadata routes: robots.ts, sitemap.ts,
+│  │                       #   manifest.ts, icon.svg (all static-export emitted)
 │  ├─ components/          # shared UI (StatusBanner, Hint, buttons, editor…)
 │  │  └─ ui/               # shadcn-style primitives
 │  └─ lib/
+│     ├─ site.ts           # canonical origin/brand + SEO copy + JSON-LD + tests
 │     ├─ result.ts         # Result<T> type
 │     ├─ crypto.ts         # KDF + AES-GCM (pure, WebCrypto + hash-wasm) + tests
 │     ├─ api.ts            # typed fetch client for the Worker + tests
