@@ -120,10 +120,13 @@ export function parseLiveMessage(data: unknown): Result<LiveUpdate> {
 }
 
 function defaultCreateSocket(roomId: string, token: string): SocketLike {
-  return new WebSocket(wsUrl(roomId, window.location), [
+  const ws = new WebSocket(wsUrl(roomId, window.location), [
     "cso.v1",
     `cso.bearer.${token}`,
   ]);
+  // The DOM lib types the on* handlers with `this`/event parameters that the
+  // narrower SocketLike deliberately omits; the runtime shapes line up.
+  return ws as unknown as SocketLike;
 }
 
 /**
