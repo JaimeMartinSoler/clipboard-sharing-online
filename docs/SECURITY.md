@@ -5,10 +5,13 @@ does **not**, the residual risks of the password-only design, and the mitigation
 
 ## Guarantees
 - **The server cannot read your data.** It stores only an opaque `room_id`, the
-  AES-GCM `ciphertext`, the `iv`, timestamps, a `capacity` count, and opaque
-  membership **token hashes**. The password, the derived master key, the content
-  key, and the plaintext are computed and used **only in the browser** and are
-  **never transmitted**.
+  AES-GCM `ciphertext`, the `iv`, timestamps, a `capacity` count, a `sync_mode`
+  label, and opaque membership **token hashes**. The password, the derived
+  master key, the content key, and the plaintext are computed and used **only
+  in the browser** and are **never transmitted**. This holds for live rooms
+  too: the WebSocket broadcasts carry exactly the same `{ciphertext, iv}` the
+  HTTP API stores — the Durable Object that fans them out holds open sockets
+  and an expiry alarm, **no content and no keys**.
 - **Tamper-evident.** AES-GCM is authenticated encryption; any modification of
   the ciphertext (including by a malicious server) causes decryption to fail
   rather than yield altered plaintext.
@@ -22,7 +25,9 @@ does **not**, the residual risks of the password-only design, and the mitigation
 - **Sealable.** A room can be capped at N terminals and **sealed** once full, so
   access is restricted to the terminals present at seal time (see below). A
   creator may **revoke** a joiner, but the freed slot stays sealed — it never
-  reopens for a stranger.
+  reopens for a stranger. In live rooms, revocation also **severs the revoked
+  member's WebSocket immediately** (close code 4001) — they stop receiving
+  broadcasts the moment they are removed, not at their next request.
 
 ## Cryptographic design (recap)
 - `Argon2id(password, APP_SALT)` → master key material (memory-hard, slow).
@@ -51,6 +56,34 @@ The creator can share an auto-join link (and a QR of it):
 - **QR is local.** The QR is rendered by a vendored, dependency-free encoder as
   inline SVG (`src/lib/qr.ts`) — no network request, no third-party service, and
   the payload is the same fragment URL. CSP-safe (no external references).
+
+## Live sync does not weaken the model
+Live rooms (`push` / `typing` sync modes) add a WebSocket per member, held by a
+per-room Durable Object. The additions were designed against the same rules:
+
+- **Ciphertext only, same origin.** A broadcast frame is
+  `{v, type, ciphertext, iv, expiresAt}` — byte-for-byte the values D1 stores.
+  The socket connects to the same origin as the API; the CSP's `connect-src`
+  lists the two `wss://` hosts **explicitly** (prod + develop) rather than a
+  bare `wss:`, which would have permitted arbitrary-host egress.
+- **The raw token never rides in a URL.** Browsers cannot set an
+  `Authorization` header on a WebSocket, and a `?token=` query string would put
+  the raw bearer token into edge/server logs — forbidden. Instead the token
+  travels in the `Sec-WebSocket-Protocol` header (`cso.bearer.<token>`), is
+  validated by the Worker against `members.token_hash`, and is **stripped
+  before the upgrade reaches the Durable Object**: the DO only ever sees the
+  SHA-256 hash, which it uses to tag sockets for echo suppression and
+  revocation.
+- **The DO stores nothing.** Its only durable state is an alarm at the room's
+  `expires_at` that closes every socket when the room dies. Content, keys, and
+  membership stay exactly where they were (browser / nowhere / D1).
+- **Auth is still per-request.** The socket is downstream-only — content
+  uploads remain on the HTTP API with full Bearer validation, size caps, and
+  rate limiting. The one client→server frame is a literal `"ping"` keepalive.
+- **`typing` mode sends nothing new.** Auto-push is the same encrypt-then-POST
+  as the Push button, debounced (~1s after typing pauses, ≥ every 3s during a
+  burst). It transmits more *often*, never more *kinds* of data — and the mode
+  is a visible creator choice, labelled in the UI.
 
 ## The central trade-off: password-only ⇒ fixed salt
 Because the **only** shared secret between the two terminals is the password,
@@ -156,7 +189,9 @@ further terminal can join *that room instance*.
   not silently weakened.
 - Store membership tokens **only as hashes** (SHA-256); never persist the raw
   token server-side and never log it. The raw token is returned once and kept in
-  client memory only.
+  client memory only. On WebSockets this means: token in the
+  `Sec-WebSocket-Protocol` header (never the URL), validated and stripped in
+  the Worker — only the hash may reach the Durable Object or a socket tag.
 - Allocate slots **atomically** (D1 transaction) so concurrent joins can never
   over-seal past `capacity`.
 - Enforce roles at the **Worker/DB layer**, not just the view: creator-only

@@ -59,7 +59,9 @@ export default function PrivacyPage() {
           Your password and every key derived from it never leave this browser.
           Text is encrypted client-side with AES-GCM-256 before any network call.
           The server stores only an opaque room id, the ciphertext, the nonce,
-          and timestamps — never the password, the keys, or the plaintext.
+          and timestamps — never the password, the keys, or the plaintext. Live
+          rooms change nothing: the real-time connection delivers the same
+          ciphertext, which is decrypted on your device when it arrives.
         </Section>
 
         <Section icon={KeyRound} title="Agreement by password alone">
@@ -97,8 +99,10 @@ export default function PrivacyPage() {
         <Section icon={Eye} title="Verify it yourself">
           Open your browser&apos;s Network tab and watch the requests: only an
           opaque id, ciphertext, a nonce, and an opaque membership token ever go
-          out. Your password and plaintext never appear on the wire. A strict
-          Content-Security-Policy blocks any third-party egress.
+          out. In a live room you&apos;ll also see one WebSocket to this same
+          origin — inspect its frames: ciphertext in, a literal
+          &quot;ping&quot; out. Your password and plaintext never appear on the
+          wire. A strict Content-Security-Policy blocks any third-party egress.
         </Section>
       </div>
 

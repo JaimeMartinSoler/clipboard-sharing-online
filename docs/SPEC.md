@@ -18,8 +18,11 @@ ciphertext it has no way to decrypt.
 2. **Agreement by password alone.** No accounts, no room codes to exchange, no
    QR pairing. Two terminals that type the same password reach the same room.
 3. **Ephemeral.** Shared data auto-expires quickly; nothing lingers.
-4. **Explicit, not magic.** The user pushes and pulls on demand with buttons —
-   no background sync, no surprise network activity.
+4. **Explicit, not magic.** Whether a room is live or manual is a visible,
+   deliberate choice the creator makes up front. Manual rooms do nothing in the
+   background; live rooms show a connection dot, and everything they transmit
+   is still ciphertext pushed by a member action (or their typing, in the mode
+   that says exactly that on the tin).
 5. **Visual & UX parity** with `office-tools-online`: same look, the single
    always-on status banner, on-hover hints, dark mode, a clear privacy story.
 
@@ -27,15 +30,24 @@ ciphertext it has no way to decrypt.
 1. Open the site on two devices.
 2. Type the **same password** on both (a passphrase — strength matters; see
    Security). On the first device, optionally set **how many terminals** may share
-   this room (default **2**: this one + the joiner).
+   this room (default **2**: this one + the joiner) and the **sharing mode**:
+   - **Live — Push to send** (default): you still click Push; the other
+     terminals receive it instantly.
+   - **Live — sync as you type**: the text auto-pushes shortly after you stop
+     typing; the others see it live.
+   - **Manual — Push & Pull**: nothing moves until each side clicks.
+   The mode is fixed for the room's lifetime; joiners inherit it.
 3. **Join** the room on both devices. Joining claims a slot; once the room is
    full it is **sealed** — no further terminal can ever join *that* room. Push and
    Pull unlock only after you've joined.
 4. On device A: paste/type text → **Push** (the text is encrypted in the browser
    and uploaded).
-5. On device B: **Pull** (the encrypted blob is downloaded and decrypted in the
-   browser). The text appears. A wrong password simply fails to decrypt — the
-   server gives the same answer either way.
+5. On device B: in a live room the text simply **appears** (decrypted in the
+   browser on arrival); in a manual room click **Pull** (the encrypted blob is
+   downloaded and decrypted in the browser). A wrong password simply fails to
+   decrypt — the server gives the same answer either way. In live rooms each
+   terminal can choose what an incoming update does to unsaved local edits:
+   **overwrite** (default) or **warn** (keep the edits; Pull loads the update).
 6. The shared blob (and the whole room, with its seal and memberships) expires
    automatically; **Clear** removes the blob immediately.
 
@@ -52,10 +64,14 @@ ciphertext it has no way to decrypt.
   **Copy** / **Clear** actions (the latter enabled only after joining).
 - Client-side AES-GCM-256 encryption; password-derived deterministic room id +
   content key (see `docs/ARCHITECTURE.md` and `docs/SECURITY.md`).
-- A Cloudflare Worker + D1 backend storing only `{room_id, capacity, ciphertext,
-  iv, created_at, expires_at}` plus `members` (room_id + token **hash**), with a
-  short TTL, lazy expiry on read, and a cleanup cron. The cap (seal-on-full) is a
-  defense-in-depth access layer on top of the encryption.
+- A Cloudflare Worker + D1 backend storing only `{room_id, capacity, sync_mode,
+  ciphertext, iv, created_at, expires_at}` plus `members` (room_id + token
+  **hash**), with a short TTL, lazy expiry on read, and a cleanup cron. The cap
+  (seal-on-full) is a defense-in-depth access layer on top of the encryption.
+- **Live rooms**: a per-room Durable Object fans pushed ciphertext out over
+  WebSockets (Hibernation API). The socket is downstream-only and carries only
+  `{ciphertext, iv, expiresAt}`; uploads stay on the HTTP API. D1 remains the
+  source of truth (reconnects catch up with one Pull).
 - A persistent `StatusBanner` with live feedback (`error > warning > info >
   validated`): e.g. *"Joined as terminal 1 of 2 — waiting for 1 more"*, *"Room
   sealed (2/2) — sharing is locked to these terminals"*, *"Room is sealed — no
@@ -86,7 +102,9 @@ ciphertext it has no way to decrypt.
   pushes with a clear error.
 
 ## Out of scope (v1)
-- Live/real-time sync (no WebSockets, no polling loop — manual Push/Pull only).
+- Collaborative/merge editing: live modes are last-write-wins on one shared
+  blob (with the overwrite/warn choice above) — no CRDT, no cursors, no
+  presence indicators.
 - Files, images, or any non-text clipboard content (text only).
 - Accounts, login, history, multi-item clipboards, or persistence beyond the TTL
   (room membership is anonymous, in-memory, and dies with the room — not an
