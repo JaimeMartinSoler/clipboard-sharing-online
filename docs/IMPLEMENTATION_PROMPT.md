@@ -1,5 +1,11 @@
 # Implementation Prompt
 
+> **Historical document.** This is the prompt that bootstrapped **v1** and is
+> kept as a record; details below may be out of date (e.g. "no live sync" —
+> live sync via a per-room Durable Object was added later). `CLAUDE.md`,
+> `docs/SPEC.md`, `docs/ARCHITECTURE.md`, and `docs/SECURITY.md` are the
+> current source of truth.
+
 Copy the block below into a fresh Claude Code session (in this repo) to build the
 app. It assumes `CLAUDE.md`, `docs/SPEC.md`, `docs/ARCHITECTURE.md`, and
 `docs/SECURITY.md` are already present and authoritative.

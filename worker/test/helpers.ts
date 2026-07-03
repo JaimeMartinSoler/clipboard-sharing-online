@@ -38,6 +38,7 @@ interface SeedRoomOptions {
   iv?: string | null;
   expiresAt?: number;
   sealed?: 0 | 1;
+  syncMode?: "manual" | "push" | "typing";
 }
 
 export async function seedRoom(
@@ -46,7 +47,7 @@ export async function seedRoom(
 ): Promise<void> {
   const now = Date.now();
   await env.DB.prepare(
-    "INSERT OR REPLACE INTO rooms (room_id, capacity, ciphertext, iv, created_at, expires_at, sealed) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    "INSERT OR REPLACE INTO rooms (room_id, capacity, ciphertext, iv, created_at, expires_at, sealed, sync_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
   )
     .bind(
       roomId,
@@ -56,6 +57,7 @@ export async function seedRoom(
       now,
       opts.expiresAt ?? now + 600_000,
       opts.sealed ?? 0,
+      opts.syncMode ?? "manual",
     )
     .run();
 }
@@ -118,4 +120,84 @@ export async function memberCount(roomId: string): Promise<number> {
     .bind(roomId)
     .first<{ n: number }>();
   return row?.n ?? 0;
+}
+
+/**
+ * Open a live-sync WebSocket the way the browser does: an Upgrade request with
+ * the bearer token smuggled in the subprotocol list. Returns the raw Response
+ * so callers can assert failure statuses; on 101 the socket is accepted and
+ * ready for events.
+ */
+export async function connectWs(
+  roomId: string,
+  token: string,
+  ip = "9.9.9.9",
+): Promise<{ res: Response; ws: WebSocket | null }> {
+  const res = await call(`/api/rooms/${roomId}/ws`, {
+    headers: {
+      Upgrade: "websocket",
+      "Sec-WebSocket-Protocol": `cso.v1, cso.bearer.${token}`,
+      "CF-Connecting-IP": ip,
+    },
+  });
+  const ws = res.webSocket ?? null;
+  ws?.accept();
+  return { res, ws };
+}
+
+/** Resolve with the next text frame, or reject after `timeoutMs`. */
+export function nextMessage(ws: WebSocket, timeoutMs = 2_000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error("timed out waiting for a WS message")),
+      timeoutMs,
+    );
+    ws.addEventListener(
+      "message",
+      (event) => {
+        clearTimeout(timer);
+        resolve(typeof event.data === "string" ? event.data : "");
+      },
+      { once: true },
+    );
+  });
+}
+
+/** Resolve with the close code/reason, or reject after `timeoutMs`. */
+export function nextClose(
+  ws: WebSocket,
+  timeoutMs = 2_000,
+): Promise<{ code: number; reason: string }> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error("timed out waiting for a WS close")),
+      timeoutMs,
+    );
+    ws.addEventListener(
+      "close",
+      (event) => {
+        clearTimeout(timer);
+        resolve({ code: event.code, reason: event.reason });
+      },
+      { once: true },
+    );
+  });
+}
+
+/** Assert silence: resolves false if a frame arrives within `windowMs`. */
+export function noMessageWithin(
+  ws: WebSocket,
+  windowMs = 250,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(true), windowMs);
+    ws.addEventListener(
+      "message",
+      () => {
+        clearTimeout(timer);
+        resolve(false);
+      },
+      { once: true },
+    );
+  });
 }

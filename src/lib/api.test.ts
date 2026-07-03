@@ -36,11 +36,18 @@ afterEach(() => {
 });
 
 describe("joinRoom", () => {
-  it("posts roomId + capacity + mode and returns the role", async () => {
+  it("posts roomId + capacity + mode + syncMode and returns role + mode", async () => {
     const fetchMock = mockFetch(
-      json({ token: "tok", joined: 1, capacity: 2, sealed: false, role: "creator" }),
+      json({
+        token: "tok",
+        joined: 1,
+        capacity: 2,
+        sealed: false,
+        role: "creator",
+        syncMode: "push",
+      }),
     );
-    const res = await joinRoom("room-1", 2, "create");
+    const res = await joinRoom("room-1", 2, "create", "push");
     expect(res).toEqual({
       ok: true,
       value: {
@@ -49,6 +56,7 @@ describe("joinRoom", () => {
         capacity: 2,
         sealed: false,
         role: "creator",
+        syncMode: "push",
       },
     });
     const [url, init] = lastCall(fetchMock);
@@ -58,7 +66,17 @@ describe("joinRoom", () => {
       roomId: "room-1",
       capacity: 2,
       mode: "create",
+      syncMode: "push",
     });
+  });
+
+  it("defaults syncMode to manual when omitted", async () => {
+    const fetchMock = mockFetch(
+      json({ token: "t", joined: 1, capacity: 2, sealed: false, role: "joiner", syncMode: "manual" }),
+    );
+    await joinRoom("room-1", 2, "join");
+    const [, init] = lastCall(fetchMock);
+    expect(JSON.parse(init.body as string).syncMode).toBe("manual");
   });
 
   it("maps 409 to EXISTS on create and SEALED on join", async () => {

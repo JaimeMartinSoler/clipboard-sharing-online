@@ -10,12 +10,14 @@
  * Issue #7: create/join roles + creator-only room management endpoints.
  */
 import { Hono } from "hono";
+import type { Bindings } from "./bindings";
 import {
   allocateSlot,
   clearClipboard,
   deleteRoom,
   getClipboard,
   getMemberRole,
+  getRoomMeta,
   isMember,
   type JoinMode,
   lazyExpireRoom,
@@ -23,16 +25,13 @@ import {
   removeMember,
   setClipboard,
   sweepExpired,
+  type SyncMode,
 } from "./db";
+import { HDR_EXPIRES_AT, HDR_TOKEN_HASH, RoomDO, WS_PROTOCOL } from "./room-do";
 
-export interface Bindings {
-  DB: D1Database;
-  TTL_DEFAULT_MS: string;
-  TTL_MAX_MS: string;
-  MAX_CIPHERTEXT_BYTES: string;
-  RATE_LIMIT_MAX: string;
-  RATE_LIMIT_WINDOW_MS: string;
-}
+// Wrangler resolves Durable Object classes from the `main` module's exports.
+export { RoomDO };
+export type { Bindings };
 
 const BASE64URL = /^[A-Za-z0-9_-]+$/;
 
@@ -86,6 +85,7 @@ interface JoinBody {
   roomId: string;
   capacity: number;
   mode: JoinMode;
+  syncMode: SyncMode;
 }
 
 function parseJoinBody(body: unknown): JoinBody | null {
@@ -99,6 +99,15 @@ function parseJoinBody(body: unknown): JoinBody | null {
     if (o.mode !== "create" && o.mode !== "join") return null;
     mode = o.mode;
   }
+  // Sync mode defaults to 'manual' so pre-realtime clients keep today's exact
+  // semantics. Only meaningful on create; on join the stored mode wins.
+  let syncMode: SyncMode = "manual";
+  if (o.syncMode !== undefined) {
+    if (o.syncMode !== "manual" && o.syncMode !== "push" && o.syncMode !== "typing") {
+      return null;
+    }
+    syncMode = o.syncMode;
+  }
   let capacity = 2; // default; ignored on join (the room already has one)
   if (o.capacity !== undefined) {
     if (
@@ -111,7 +120,7 @@ function parseJoinBody(body: unknown): JoinBody | null {
     }
     capacity = o.capacity;
   }
-  return { roomId: o.roomId, capacity, mode };
+  return { roomId: o.roomId, capacity, mode, syncMode };
 }
 
 /** A fresh, high-entropy bearer token (256 bits), base64url. Returned once. */
@@ -139,6 +148,25 @@ function bearerToken(authHeader: string | undefined): string | null {
   }
   const token = authHeader.slice("Bearer ".length).trim();
   return token.length === 0 ? null : token;
+}
+
+/**
+ * Extract the membership token a WebSocket client smuggled through the
+ * `Sec-WebSocket-Protocol` header (`cso.v1, cso.bearer.<token>`). Browsers
+ * cannot set an Authorization header on a WebSocket, and a query param would
+ * spill the raw token into edge logs — the subprotocol list is the one place
+ * a browser lets us put it that stays out of URLs.
+ */
+function tokenFromSubprotocol(header: string | undefined): string | null {
+  if (typeof header !== "string") return null;
+  for (const entry of header.split(",")) {
+    const candidate = entry.trim();
+    if (candidate.startsWith("cso.bearer.")) {
+      const token = candidate.slice("cso.bearer.".length);
+      return token.length === 0 ? null : token;
+    }
+  }
+  return null;
 }
 
 /** Authorize a request against a room's membership via its Bearer token. */
@@ -238,6 +266,7 @@ app.post("/api/rooms", async (c) => {
     tokenHash,
     now,
     Number(c.env.TTL_DEFAULT_MS),
+    body.syncMode,
   );
 
   if (!result.joined) {
@@ -262,7 +291,45 @@ app.post("/api/rooms", async (c) => {
     capacity: result.capacity,
     sealed: result.sealed,
     role: result.role,
+    // The stored mode — this is how a joiner learns what the creator chose.
+    syncMode: result.syncMode,
   });
+});
+
+// --- Live sync (Durable Object + WebSocket) ---------------------------------
+
+app.get("/api/rooms/:roomId/ws", async (c) => {
+  const roomId = c.req.param("roomId");
+  if (c.req.header("Upgrade")?.toLowerCase() !== "websocket") {
+    return c.json({ error: "Expected a WebSocket upgrade" }, 426);
+  }
+  // Bearer auth rides in the subprotocol list; validate it HERE, against D1,
+  // before anything reaches the Durable Object.
+  const token = tokenFromSubprotocol(c.req.header("Sec-WebSocket-Protocol"));
+  if (token === null) return c.json({ error: "Unauthorized" }, 401);
+  const tokenHash = await sha256hex(token);
+  if (!(await isMember(c.env.DB, roomId, tokenHash))) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  const now = Date.now();
+  const meta = await getRoomMeta(c.env.DB, roomId, now);
+  if (!meta) {
+    await lazyExpireRoom(c.env.DB, roomId, now);
+    return c.json({ error: "Not found" }, 404);
+  }
+  // Manual rooms never open sockets — by contract, not just by client choice.
+  if (meta.syncMode === "manual") {
+    return c.json({ error: "Room is not live" }, 409);
+  }
+
+  // Forward the upgrade with the raw token STRIPPED (the DO only ever sees
+  // the hash) and the echo-protocol + identity passed as internal headers.
+  const headers = new Headers(c.req.raw.headers);
+  headers.set("Sec-WebSocket-Protocol", WS_PROTOCOL);
+  headers.set(HDR_TOKEN_HASH, tokenHash);
+  headers.set(HDR_EXPIRES_AT, String(meta.expiresAt));
+  const stub = c.env.ROOM.get(c.env.ROOM.idFromName(roomId));
+  return stub.fetch(new Request(c.req.raw, { headers }));
 });
 
 // --- Creator-only room management (issue #7) -------------------------------
@@ -288,12 +355,17 @@ app.delete("/api/rooms/:roomId/members/:memberId", async (c) => {
   if (role === null) return c.json({ error: "Unauthorized" }, 401);
   if (role !== "creator") return c.json({ error: "Forbidden" }, 403);
 
-  const outcome = await removeMember(c.env.DB, roomId, memberId);
-  if (outcome === "not_found") return c.json({ error: "Not found" }, 404);
+  const result = await removeMember(c.env.DB, roomId, memberId);
+  if (result.outcome === "not_found") return c.json({ error: "Not found" }, 404);
   // The creator cannot remove themselves here; use DELETE /api/rooms to nuke it.
-  if (outcome === "is_creator") {
+  if (result.outcome === "is_creator") {
     return c.json({ error: "Cannot remove the creator" }, 400);
   }
+  // Revocation also severs the member's live sockets (identified by token
+  // hash). Fire-and-forget: the membership row is already gone either way.
+  c.executionCtx.waitUntil(
+    c.env.ROOM.get(c.env.ROOM.idFromName(roomId)).closeMember(result.tokenHash),
+  );
   return c.json({ ok: true });
 });
 
@@ -303,6 +375,10 @@ app.delete("/api/rooms/:roomId", async (c) => {
   if (role === null) return c.json({ error: "Unauthorized" }, 401);
   if (role !== "creator") return c.json({ error: "Forbidden" }, 403);
   await deleteRoom(c.env.DB, roomId);
+  // Nuking the room also closes every live socket (code 4004).
+  c.executionCtx.waitUntil(
+    c.env.ROOM.get(c.env.ROOM.idFromName(roomId)).closeAll(),
+  );
   return c.body(null, 204);
 });
 
@@ -312,9 +388,12 @@ app.post("/api/clipboard", async (c) => {
   const body = parsePushBody(raw, maxCiphertext);
   if (!body) return c.json({ error: "Invalid request" }, 400);
 
-  if (
-    !(await authorizeMember(c.env.DB, body.roomId, c.req.header("Authorization")))
-  ) {
+  // Hash the bearer token once: it authorizes the push AND identifies the
+  // pusher's own sockets for echo suppression in live rooms.
+  const token = bearerToken(c.req.header("Authorization"));
+  if (token === null) return c.json({ error: "Unauthorized" }, 401);
+  const tokenHash = await sha256hex(token);
+  if (!(await isMember(c.env.DB, body.roomId, tokenHash))) {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
@@ -324,14 +403,32 @@ app.post("/api/clipboard", async (c) => {
 
   const now = Date.now();
   const expiresAt = now + clampTtl(body.ttlMs, c.env);
-  const stored = await setClipboard(
-    c.env.DB,
-    body.roomId,
-    body.ciphertext,
-    body.iv,
-    expiresAt,
-    now,
-  );
+  const meta = await getRoomMeta(c.env.DB, body.roomId, now);
+  if (!meta) return c.json({ error: "Not found" }, 404);
+
+  // Manual rooms write straight to D1 (no DO is ever created for them). Live
+  // rooms route the write THROUGH the room's DO so the D1 write + broadcast
+  // happen in one serialized turn — every member sees pushes in the same
+  // order they were committed. The DO re-runs setClipboard's liveness guard,
+  // so a room that expired between the meta read and here still yields 404.
+  const stored =
+    meta.syncMode === "manual"
+      ? await setClipboard(
+          c.env.DB,
+          body.roomId,
+          body.ciphertext,
+          body.iv,
+          expiresAt,
+          now,
+        )
+      : await c.env.ROOM.get(c.env.ROOM.idFromName(body.roomId)).push({
+          roomId: body.roomId,
+          ciphertext: body.ciphertext,
+          iv: body.iv,
+          expiresAt,
+          now,
+          pusherTokenHash: tokenHash,
+        });
   if (!stored) return c.json({ error: "Not found" }, 404);
   return c.json({ ok: true, expiresAt });
 });
