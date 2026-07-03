@@ -23,6 +23,20 @@ database_name = "clipboard-sharing-online"
 database_id = "ab8b9ce2-9237-4014-a923-4c690ef1e1f2"
 migrations_dir = "migrations"
 
+# One Durable Object per live room: holds the room's WebSockets (Hibernation
+# API, so idle sockets cost ~no duration) and serializes push → D1 write →
+# broadcast. D1 stays the source of truth; the DO stores nothing but its
+# expiry alarm.
+[[durable_objects.bindings]]
+name = "ROOM"
+class_name = "RoomDO"
+
+# DO class migrations are top-level and shared by every environment.
+# SQLite-backed classes so the Worker also runs on the free plan.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RoomDO"]
+
 # Cleanup sweep for abandoned/expired rooms, members, and blobs.
 [triggers]
 crons = ["*/5 * * * *"]
@@ -34,8 +48,9 @@ TTL_MAX_MS = "3600000"
 # Reject ciphertext payloads larger than 256 KB (text only, v1).
 MAX_CIPHERTEXT_BYTES = "262144"
 # In-Worker per-IP fixed-window rate limit (defense-in-depth; a Cloudflare Rate
-# Limiting rule can be layered on top at the edge).
-RATE_LIMIT_MAX = "60"
+# Limiting rule can be layered on top at the edge). 120/min leaves headroom for
+# two 'typing'-mode members behind one NAT (debounced auto-push ≤ ~20/min each).
+RATE_LIMIT_MAX = "120"
 RATE_LIMIT_WINDOW_MS = "60000"
 
 # ---------------------------------------------------------------------------
@@ -66,6 +81,12 @@ database_name = "clipboard-sharing-online-develop"
 database_id = "9ec2a81a-25e7-461e-81dc-602376623ba3"
 migrations_dir = "migrations"
 
+# Bindings are non-inheritable, so the DO binding is repeated here (the
+# [[migrations]] block above is top-level and applies to all environments).
+[[env.develop.durable_objects.bindings]]
+name = "ROOM"
+class_name = "RoomDO"
+
 [env.develop.triggers]
 crons = ["*/5 * * * *"]
 
@@ -73,5 +94,5 @@ crons = ["*/5 * * * *"]
 TTL_DEFAULT_MS = "600000"
 TTL_MAX_MS = "3600000"
 MAX_CIPHERTEXT_BYTES = "262144"
-RATE_LIMIT_MAX = "60"
+RATE_LIMIT_MAX = "120"
 RATE_LIMIT_WINDOW_MS = "60000"

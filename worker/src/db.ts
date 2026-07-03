@@ -85,6 +85,13 @@ export type MemberRole = "creator" | "joiner";
 /** How a POST /api/rooms request wants to obtain a slot. */
 export type JoinMode = "create" | "join";
 
+/**
+ * How content propagates between a room's terminals. Fixed at creation:
+ * `manual` = Push/Pull only (no WebSocket), `push` = explicit Push received
+ * live by others, `typing` = debounced auto-push while typing, received live.
+ */
+export type SyncMode = "manual" | "push" | "typing";
+
 export interface JoinResult {
   /** Whether a slot was granted (false ⇒ see `reason`). */
   joined: boolean;
@@ -96,6 +103,8 @@ export interface JoinResult {
   sealed: boolean;
   /** The role this member holds (only meaningful when `joined`). */
   role: MemberRole;
+  /** The room's sync mode (the stored one — a joiner learns it here). */
+  syncMode: SyncMode;
   /** Why a join was refused (only meaningful when `joined === false`). */
   reason?: "sealed" | "not_found" | "exists";
 }
@@ -104,6 +113,7 @@ interface RoomStat {
   capacity: number;
   sealed: number;
   members: number;
+  syncMode: SyncMode;
 }
 
 /**
@@ -134,6 +144,7 @@ export async function allocateSlot(
   tokenHash: string,
   now: number,
   ttlMs: number,
+  syncMode: SyncMode,
 ): Promise<JoinResult> {
   const role: MemberRole = mode === "create" ? "creator" : "joiner";
   const expiresAt = now + ttlMs;
@@ -153,7 +164,7 @@ export async function allocateSlot(
     .bind(roomId, roomId);
   const readBack = db
     .prepare(
-      "SELECT capacity, sealed, (SELECT COUNT(*) FROM members WHERE room_id = ?) AS members FROM rooms WHERE room_id = ?",
+      "SELECT capacity, sealed, sync_mode AS syncMode, (SELECT COUNT(*) FROM members WHERE room_id = ?) AS members FROM rooms WHERE room_id = ?",
     )
     .bind(roomId, roomId);
 
@@ -166,9 +177,9 @@ export async function allocateSlot(
     // already created it), the creator INSERT changes 0 rows ⇒ reason "exists".
     const createRoom = db
       .prepare(
-        "INSERT OR IGNORE INTO rooms (room_id, capacity, ciphertext, iv, created_at, expires_at, sealed) VALUES (?, ?, NULL, NULL, ?, ?, 0)",
+        "INSERT OR IGNORE INTO rooms (room_id, capacity, ciphertext, iv, created_at, expires_at, sealed, sync_mode) VALUES (?, ?, NULL, NULL, ?, ?, 0, ?)",
       )
-      .bind(roomId, capacity, now, expiresAt);
+      .bind(roomId, capacity, now, expiresAt, syncMode);
     const insertCreator = db
       .prepare(
         "INSERT INTO members (room_id, token_hash, joined_at, role) SELECT ?, ?, ?, 'creator' WHERE EXISTS (SELECT 1 FROM rooms WHERE room_id = ? AND expires_at > ?) AND (SELECT COUNT(*) FROM members WHERE room_id = ?) = 0",
@@ -202,6 +213,9 @@ export async function allocateSlot(
       capacity: stat?.capacity ?? capacity,
       sealed: (stat?.sealed ?? 0) === 1,
       role,
+      // The stored mode, read back in the same transaction — for a joiner this
+      // is how they learn what the creator chose.
+      syncMode: stat?.syncMode ?? syncMode,
     };
   }
 
@@ -220,8 +234,29 @@ export async function allocateSlot(
     capacity: stat?.capacity ?? capacity,
     sealed: (stat?.sealed ?? 0) === 1,
     role,
+    syncMode: stat?.syncMode ?? syncMode,
     reason,
   };
+}
+
+export interface RoomMeta {
+  syncMode: SyncMode;
+  expiresAt: number;
+}
+
+/** Sync mode + expiry of a live room, or null if missing/expired. */
+export async function getRoomMeta(
+  db: D1Database,
+  roomId: string,
+  now: number,
+): Promise<RoomMeta | null> {
+  const row = await db
+    .prepare(
+      "SELECT sync_mode AS syncMode, expires_at AS expiresAt FROM rooms WHERE room_id = ? AND expires_at > ?",
+    )
+    .bind(roomId, now)
+    .first<RoomMeta>();
+  return row ?? null;
 }
 
 export interface MemberRecord {
@@ -259,12 +294,17 @@ export async function getMemberRole(
   return row?.role ?? null;
 }
 
-export type RemoveMemberResult = "removed" | "not_found" | "is_creator";
+export type RemoveMemberResult =
+  | { outcome: "removed"; tokenHash: string }
+  | { outcome: "not_found" }
+  | { outcome: "is_creator" };
 
 /**
  * Remove a single joiner from a room, revoking their token. The seal flag is
  * deliberately left untouched: the freed slot does NOT reopen (see migration
- * 0002). The creator can never be removed this way.
+ * 0002). The creator can never be removed this way. On success the revoked
+ * member's token HASH is returned so the caller can sever any live WebSockets
+ * tagged with it — the raw token is never stored, so a hash is all there is.
  */
 export async function removeMember(
   db: D1Database,
@@ -272,16 +312,18 @@ export async function removeMember(
   memberId: number,
 ): Promise<RemoveMemberResult> {
   const target = await db
-    .prepare("SELECT role FROM members WHERE id = ? AND room_id = ? LIMIT 1")
+    .prepare(
+      "SELECT role, token_hash AS tokenHash FROM members WHERE id = ? AND room_id = ? LIMIT 1",
+    )
     .bind(memberId, roomId)
-    .first<{ role: MemberRole }>();
-  if (!target) return "not_found";
-  if (target.role === "creator") return "is_creator";
+    .first<{ role: MemberRole; tokenHash: string }>();
+  if (!target) return { outcome: "not_found" };
+  if (target.role === "creator") return { outcome: "is_creator" };
   await db
     .prepare("DELETE FROM members WHERE id = ? AND room_id = ?")
     .bind(memberId, roomId)
     .run();
-  return "removed";
+  return { outcome: "removed", tokenHash: target.tokenHash };
 }
 
 /** Nuke a room entirely: its blob, its members, everything. Idempotent. */
