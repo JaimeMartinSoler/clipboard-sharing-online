@@ -45,12 +45,21 @@ export type MemberRole = "creator" | "joiner";
 /** How to obtain a slot: create a fresh room, or join an existing one. */
 export type JoinMode = "create" | "join";
 
+/**
+ * How content propagates between terminals, fixed by the creator at creation:
+ * `manual` = Push/Pull only (no WebSocket), `push` = explicit Push received
+ * live by others, `typing` = debounced auto-push while typing, received live.
+ */
+export type SyncMode = "manual" | "push" | "typing";
+
 export interface JoinResponse {
   token: string;
   joined: number;
   capacity: number;
   sealed: boolean;
   role: MemberRole;
+  /** The room's stored mode — a joiner learns the creator's choice here. */
+  syncMode: SyncMode;
 }
 
 export interface MemberRow {
@@ -80,19 +89,20 @@ async function readJson<T>(res: Response): Promise<Result<T>> {
 /**
  * Create a fresh room (`mode: "create"`, caller becomes the creator) or join an
  * existing one (`mode: "join"`, caller becomes a joiner) and claim a slot.
- * `capacity` is only meaningful on create.
+ * `capacity` and `syncMode` are only meaningful on create.
  */
 export async function joinRoom(
   roomId: string,
   capacity: number,
   mode: JoinMode,
+  syncMode: SyncMode = "manual",
 ): Promise<Result<JoinResponse>> {
   let res: Response;
   try {
     res = await fetch(`${API_BASE}/rooms`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ roomId, capacity, mode }),
+      body: JSON.stringify({ roomId, capacity, mode, syncMode }),
     });
   } catch {
     return err(ApiError.NETWORK);

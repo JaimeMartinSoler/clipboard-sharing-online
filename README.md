@@ -20,15 +20,23 @@ encryption**.
 
 1. Open the site and type a **long shared password** (strength matters).
 2. On one device, **Create** the room — you become its **creator** and set **how
-   many terminals** may share it (default 2). On the others, **Join** with the
-   same password (or open the creator's share link, which joins automatically).
+   many terminals** may share it (default 2) plus the **sharing mode**:
+   - **Live — Push to send** (default): you click Push; the other terminals
+     receive it **instantly** over an encrypted WebSocket.
+   - **Live — sync as you type**: the text auto-pushes shortly after you stop
+     typing; the others see it live.
+   - **Manual — Push & Pull**: the classic explicit flow, no socket at all.
+   On the others, **Join** with the same password (or open the creator's share
+   link, which joins automatically) — joiners inherit the room's mode.
 3. Joining claims a slot; once full the room is **sealed** — no further terminal
    can ever join *that* room instance.
 4. On device A: paste/type text → **Push** (encrypted in your browser, then
    uploaded).
-5. On device B: **Pull** (the blob is downloaded and decrypted in your browser).
-   A wrong password simply fails to decrypt — the server gives the same answer
-   either way.
+5. On device B: in a live room the text just **appears** (decrypted in your
+   browser on arrival); in a manual room click **Pull**. A wrong password simply
+   fails to decrypt — the server gives the same answer either way. Live rooms
+   have a per-terminal **On update** toggle: *overwrite my text* (default) or
+   *warn, keep my edits* (Pull then loads the update).
 6. **Copy** / **Paste** move text between the pane and your device clipboard;
    **Clear** empties the text box locally (it does not touch the server — Push
    is what overwrites the shared blob). The blob and the whole room auto-expire
@@ -67,14 +75,17 @@ derivation is deterministic and the salt is fixed — see
 - **Encrypt before egress.** All content is AES-GCM-256 encrypted client-side
   *before* any network call.
 - **Zero-knowledge server.** Stored columns: `room_id`, `capacity`, `sealed`,
-  `ciphertext`, `iv`, `created_at`, `expires_at`, plus per-member **token
-  hashes** and a `creator`/`joiner` **role** — never the password, keys,
-  plaintext, or IP addresses.
+  `sync_mode`, `ciphertext`, `iv`, `created_at`, `expires_at`, plus per-member
+  **token hashes** and a `creator`/`joiner` **role** — never the password,
+  keys, plaintext, or IP addresses. Live rooms change nothing here: the
+  WebSocket broadcasts carry the same ciphertext, fanned out by a per-room
+  Durable Object that stores no content (see
+  [`docs/SECURITY.md`](docs/SECURITY.md)).
 - **Ephemeral.** Rooms, memberships, and blobs share one TTL and auto-expire
   (lazy delete on read + a cleanup cron).
 - **Strict CSP.** [`public/_headers`](public/_headers) limits `connect-src` to
-  `'self'` (the same-origin API) plus Cloudflare Web Analytics — no third-party
-  egress of any kind.
+  `'self'` (the same-origin API), the explicit same-origin `wss://` hosts for
+  live sync, plus Cloudflare Web Analytics — no third-party egress of any kind.
 - **Sealed rooms (defense-in-depth).** A capped, sealable room protects content
   against a *later* password compromise. It is access control on top of the
   encryption, never a substitute — and membership is strictly in-memory, so a
@@ -86,7 +97,7 @@ derivation is deterministic and the salt is fixed — see
 - [TypeScript](https://www.typescriptlang.org/) (strict, no `any`) + the `Result<T>` pattern
 - [Tailwind CSS v4](https://tailwindcss.com/) + shadcn-style UI primitives
 - [hash-wasm](https://github.com/Daninet/hash-wasm) (Argon2id) + WebCrypto (HKDF, AES-GCM)
-- [Hono](https://hono.dev/) on a [Cloudflare Worker](https://workers.cloudflare.com/) bound to [Cloudflare D1](https://developers.cloudflare.com/d1/)
+- [Hono](https://hono.dev/) on a [Cloudflare Worker](https://workers.cloudflare.com/) bound to [Cloudflare D1](https://developers.cloudflare.com/d1/), plus a per-room [Durable Object](https://developers.cloudflare.com/durable-objects/) ([WebSocket Hibernation](https://developers.cloudflare.com/durable-objects/best-practices/websockets/)) for live sync
 - [Vitest](https://vitest.dev/) (+ [`@cloudflare/vitest-pool-workers`](https://developers.cloudflare.com/workers/testing/vitest-integration/) for the Worker)
 - [pnpm](https://pnpm.io/) workspaces
 
@@ -97,12 +108,13 @@ derivation is deterministic and the salt is fixed — see
 ├─ src/
 │  ├─ app/              # page.tsx (the tool), privacy/, layout.tsx
 │  ├─ components/       # StatusBanner, Hint, ui/* primitives, the tool
-│  └─ lib/              # result.ts, crypto.ts, api.ts, password-strength.ts (+ tests)
+│  └─ lib/              # result.ts, crypto.ts, api.ts, live.ts, debounce.ts, … (+ tests)
 ├─ public/_headers      # strict CSP
 └─ worker/              # package "worker": Cloudflare Worker API
    ├─ src/{index,db}.ts # Hono app + D1 queries
-   ├─ migrations/0001_init.sql
-   ├─ wrangler.toml     # D1 binding, /api/* route, cron, vars
+   ├─ src/room-do.ts    # RoomDO: per-room WebSocket fanout (hibernated)
+   ├─ migrations/       # 0001_init, 0002_roles_sealed, 0003_sync_mode
+   ├─ wrangler.toml     # D1 + DO bindings, /api/* route, cron, vars
    └─ test/             # vitest-pool-workers against a local D1
 ```
 
@@ -135,9 +147,11 @@ pnpm -r --include-workspace-root test
 ```
 
 In production the Worker is bound to `/api/*` on the same custom domain as Pages,
-so the browser talks to it **same-origin** (no CORS). For local development,
-point the frontend at `http://127.0.0.1:8787` or run the two behind a single
-origin.
+so the browser talks to it **same-origin** (no CORS). For local development run
+both dev servers side by side: `next.config.mjs` rewrites proxy the HTTP `/api/*`
+calls from `:3000` to `:8787`, while the live-sync **WebSocket connects straight
+to `ws://127.0.0.1:8787`** (Next's dev proxy cannot carry WebSocket upgrades;
+`src/lib/live.ts` handles this automatically on localhost).
 
 ## Deploy
 

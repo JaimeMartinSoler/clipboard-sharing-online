@@ -1,4 +1,4 @@
-import type { MemberRole } from "@/lib/api";
+import type { MemberRole, SyncMode } from "@/lib/api";
 import type { BannerKind } from "@/components/status-banner";
 
 /**
@@ -14,7 +14,16 @@ export interface Session {
   capacity: number;
   sealed: boolean;
   role: MemberRole;
+  /** The room's sync mode, fixed by the creator at creation. */
+  syncMode: SyncMode;
 }
+
+/**
+ * What to do when a live update arrives while the local text has unsaved
+ * edits. Per-client, in-memory, switchable anytime: `overwrite` replaces the
+ * textarea regardless; `warn` keeps the edits and surfaces a banner instead.
+ */
+export type ConflictPolicy = "overwrite" | "warn";
 
 export interface Status {
   kind: BannerKind;
