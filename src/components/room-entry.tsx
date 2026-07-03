@@ -1,12 +1,27 @@
 "use client";
 
-import { Eye, EyeOff, LogIn, Plus } from "lucide-react";
+import {
+  Dices,
+  Eye,
+  EyeOff,
+  KeyRound,
+  LockKeyhole,
+  LogIn,
+  Plus,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
+import Link from "next/link";
 import { E2EBadge } from "@/components/e2e-badge";
 import { PasswordStrengthMeter } from "@/components/password-strength-meter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { SyncMode } from "@/lib/api";
+import {
+  generateSaferPassword,
+  generateSimplePassword,
+} from "@/lib/password-gen";
 
 export const CAPACITY_OPTIONS = [2, 3, 4, 5, 6, 7, 8, 9, 10];
 
@@ -54,31 +69,74 @@ export function RoomEntry({
 
   return (
     <>
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">
+      <div className="flex flex-col gap-3">
+        <h1 className="text-center text-2xl font-semibold tracking-tight">
           Clipboard Sharing Online
         </h1>
-        <p className="text-sm text-muted-foreground">
-          Agree on one password out-of-band. <strong>Create</strong> a room on
-          one device and <strong>Join</strong> it on the others. Text is
-          encrypted in your browser; the server only ever stores ciphertext it
-          cannot read.
-        </p>
+        <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+          <p className="flex items-start gap-2">
+            <Users className="mt-0.5 size-4 shrink-0" />
+            <span>
+              <strong>Create</strong> a room with <strong>password</strong> on
+              one device and share it or <strong>Join</strong> it on the others
+            </span>
+          </p>
+          <p className="flex items-start gap-2">
+            <LockKeyhole className="mt-0.5 size-4 shrink-0" />
+            <span>
+              <strong>Clipboard text is encrypted</strong> in your browser,
+              never sent or stored directly
+            </span>
+          </p>
+          <p className="flex items-start gap-2">
+            <KeyRound className="mt-0.5 size-4 shrink-0" />
+            <span>
+              <strong>Password is never sent nor stored</strong>. Find more info
+              in our{" "}
+              <Link href="/privacy" className="underline hover:text-foreground">
+                privacy policy
+              </Link>
+              .
+            </span>
+          </p>
+        </div>
         <div>
           <E2EBadge />
         </div>
       </div>
 
       <section className="flex flex-col gap-3 rounded-lg border bg-card p-4">
-        <label htmlFor="password" className="text-sm font-medium">
-          Shared password
-        </label>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <label htmlFor="password" className="text-sm font-medium">
+            Room password
+          </label>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => onPasswordChange(generateSimplePassword())}
+              title="Generate a short, easy-to-share password (4 letters + 2 digits)."
+            >
+              <Dices /> Simple
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => onPasswordChange(generateSaferPassword())}
+              title="Generate a strong 16-character password (letters, digits & symbols)."
+            >
+              <ShieldCheck /> Safer
+            </Button>
+          </div>
+        </div>
         <div className="relative">
           <Input
             id="password"
             type={showPassword ? "text" : "password"}
             autoComplete="off"
-            placeholder="A long passphrase you share out-of-band"
+            placeholder="Type a password that only room creator and joiners know"
             value={password}
             onChange={(e) => onPasswordChange(e.target.value)}
             className="pr-9"

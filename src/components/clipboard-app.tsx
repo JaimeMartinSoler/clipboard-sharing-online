@@ -22,6 +22,7 @@ import {
 } from "@/lib/api";
 import { decrypt, deriveKeys, encrypt } from "@/lib/crypto";
 import { createDebounced, type Debounced } from "@/lib/debounce";
+import { generateSimplePassword } from "@/lib/password-gen";
 import type { LiveUpdate } from "@/lib/live";
 import { decodePasswordHash } from "@/lib/room-link";
 
@@ -87,7 +88,7 @@ export function ClipboardApp() {
   const [autoJoining, setAutoJoining] = useState(hasInboundShareLink);
   const [status, setStatus] = useState<Status>({
     kind: "info",
-    message: "Enter a shared password, then Create or Join a room.",
+    message: "",
   });
 
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
@@ -208,6 +209,10 @@ export function ClipboardApp() {
       setPassword(pw);
       void allocate("join", pw).finally(() => setAutoJoining(false));
     } else {
+      // Fresh visit (no share link): seed a short, easy-to-share password so the
+      // field is never empty. Generated client-side after mount to avoid a
+      // hydration mismatch with the server-rendered empty input.
+      setPassword(generateSimplePassword());
       setAutoJoining(false);
     }
   }, [allocate]);
@@ -518,7 +523,9 @@ export function ClipboardApp() {
             onCreate={() => void allocate("create", password)}
             onJoin={() => void allocate("join", password)}
           />
-          <StatusBanner kind={status.kind}>{status.message}</StatusBanner>
+          {status.message && (
+            <StatusBanner kind={status.kind}>{status.message}</StatusBanner>
+          )}
         </>
       )}
     </div>
