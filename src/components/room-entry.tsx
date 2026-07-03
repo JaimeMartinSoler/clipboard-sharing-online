@@ -1,18 +1,18 @@
 "use client";
 
 import {
-  Dices,
+  Code,
   Eye,
   EyeOff,
+  Info,
   KeyRound,
   LockKeyhole,
   LogIn,
   Plus,
-  ShieldCheck,
-  Users,
+  RotateCcw,
 } from "lucide-react";
 import Link from "next/link";
-import { E2EBadge } from "@/components/e2e-badge";
+import type { ReactNode } from "react";
 import { PasswordStrengthMeter } from "@/components/password-strength-meter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,11 +25,15 @@ import {
 
 export const CAPACITY_OPTIONS = [2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-/** Creator-facing labels for the room's sync mode (fixed at creation). */
+/**
+ * Creator-facing labels for the room's sync mode (fixed at creation). Native
+ * <option> elements can't host React icons, so each label is prefixed with an
+ * emoji glyph (hand / radio-tower / zap) as the closest accessible equivalent.
+ */
 export const SYNC_MODE_OPTIONS: { value: SyncMode; label: string }[] = [
-  { value: "push", label: "Live — Push to send" },
-  { value: "typing", label: "Live — sync as you type" },
-  { value: "manual", label: "Manual — Push & Pull" },
+  { value: "manual", label: "✋ Manual: Push & Pull Manual" },
+  { value: "push", label: "📡 Broadcast: Push Manual, Pull Auto" },
+  { value: "typing", label: "⚡ Sync: Push & Pull Auto" },
 ];
 
 /** Busy states the entry view cares about. */
@@ -52,6 +56,7 @@ export function RoomEntry({
   busy,
   onCreate,
   onJoin,
+  statusBanner,
 }: {
   password: string;
   onPasswordChange: (value: string) => void;
@@ -64,6 +69,8 @@ export function RoomEntry({
   busy: EntryBusy;
   onCreate: () => void;
   onJoin: () => void;
+  /** The always-visible status line, rendered directly under the heading. */
+  statusBanner: ReactNode;
 }) {
   const disabled = password.length === 0 || busy !== null;
 
@@ -73,39 +80,7 @@ export function RoomEntry({
         <h1 className="text-center text-2xl font-semibold tracking-tight">
           Clipboard Sharing Online
         </h1>
-        <div className="flex flex-col gap-2 text-sm text-muted-foreground">
-          <p className="flex items-start gap-2">
-            <Users className="mt-0.5 size-4 shrink-0 text-foreground" />
-            <span>
-              <strong>Create</strong> a room with <strong>password</strong> on
-              one device and share it or <strong>Join</strong> it on the others
-            </span>
-          </p>
-          <p className="flex items-start gap-2">
-            <LockKeyhole className="mt-0.5 size-4 shrink-0 text-foreground" />
-            <span>
-              <strong>Clipboard text is encrypted</strong> in your browser,
-              never sent or stored directly
-            </span>
-          </p>
-          <p className="flex items-start gap-2">
-            <KeyRound className="mt-0.5 size-4 shrink-0 text-foreground" />
-            <span>
-              <strong>Password is never sent nor stored</strong>. Find more info
-              in our{" "}
-              <Link
-                href="/privacy"
-                className="underline underline-offset-2 hover:text-foreground"
-              >
-                privacy policy
-              </Link>
-              .
-            </span>
-          </p>
-        </div>
-        <div>
-          <E2EBadge />
-        </div>
+        {statusBanner}
       </div>
 
       <section className="flex flex-col gap-3 rounded-lg border bg-card p-4">
@@ -121,7 +96,7 @@ export function RoomEntry({
               onClick={() => onPasswordChange(generateSimplePassword())}
               title="Generate a short random password that's easy to read aloud or retype"
             >
-              <Dices /> Random password (simple)
+              <RotateCcw /> Password Simple
             </Button>
             <Button
               type="button"
@@ -130,13 +105,10 @@ export function RoomEntry({
               onClick={() => onPasswordChange(generateSaferPassword())}
               title="Generate a long, high-entropy password — share it via the room's link or QR"
             >
-              <ShieldCheck /> Random password (safer)
+              <KeyRound /> Password Safer
             </Button>
           </div>
         </div>
-        <p className="-mt-1 text-xs text-muted-foreground">
-          The larger the safer.
-        </p>
         <div className="relative">
           <Input
             id="password"
@@ -145,7 +117,7 @@ export function RoomEntry({
             placeholder="Type a password that only room creator and joiners know"
             value={password}
             onChange={(e) => onPasswordChange(e.target.value)}
-            className="pr-9"
+            className="px-9 text-center"
           />
           <button
             type="button"
@@ -231,7 +203,6 @@ export function RoomEntry({
             </p>
             <Button
               size="sm"
-              variant="outline"
               className="mt-auto"
               onClick={onJoin}
               disabled={disabled}
@@ -240,6 +211,47 @@ export function RoomEntry({
             </Button>
           </div>
         </div>
+      </section>
+
+      <section className="flex flex-col gap-2 rounded-lg border bg-card p-4 text-sm text-muted-foreground">
+        <p className="flex items-start gap-2">
+          <LockKeyhole className="mt-0.5 size-4 shrink-0 text-foreground" />
+          <span>
+            <strong>Clipboard text is encrypted</strong> in your browser, never
+            sent or stored directly
+          </span>
+        </p>
+        <p className="flex items-start gap-2">
+          <KeyRound className="mt-0.5 size-4 shrink-0 text-foreground" />
+          <span>
+            <strong>Password is never sent nor stored</strong>. Find more info in
+            our{" "}
+            <Link
+              href="/privacy"
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              privacy policy
+            </Link>
+          </span>
+        </p>
+        <p className="flex items-start gap-2">
+          <Code className="mt-0.5 size-4 shrink-0 text-foreground" />
+          <span>
+            <strong>Highly configurable</strong>, simple by default
+          </span>
+        </p>
+        <p className="flex items-start gap-2">
+          <Info className="mt-0.5 size-4 shrink-0 text-foreground" />
+          <span>
+            For more info check our{" "}
+            <Link
+              href="/privacy"
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              privacy policy
+            </Link>
+          </span>
+        </p>
       </section>
     </>
   );

@@ -73,7 +73,7 @@ function hasInboundShareLink(): boolean {
  */
 export function ClipboardApp() {
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [showPassword, setShowPassword] = useState(true);
   const [capacity, setCapacity] = useState(2);
   const [syncMode, setSyncMode] = useState<SyncMode>("push");
   const [ttlMs, setTtlMs] = useState<number>(600_000);
@@ -517,24 +517,25 @@ export function ClipboardApp() {
           <span>Joining the room…</span>
         </div>
       ) : (
-        <>
-          <RoomEntry
-            password={password}
-            onPasswordChange={setPassword}
-            showPassword={showPassword}
-            onToggleShowPassword={() => setShowPassword((v) => !v)}
-            capacity={capacity}
-            onCapacityChange={setCapacity}
-            syncMode={syncMode}
-            onSyncModeChange={setSyncMode}
-            busy={entryBusy}
-            onCreate={() => void allocate("create", password)}
-            onJoin={() => void allocate("join", password)}
-          />
-          {status.message && (
-            <StatusBanner kind={status.kind}>{status.message}</StatusBanner>
-          )}
-        </>
+        <RoomEntry
+          password={password}
+          onPasswordChange={setPassword}
+          showPassword={showPassword}
+          onToggleShowPassword={() => setShowPassword((v) => !v)}
+          capacity={capacity}
+          onCapacityChange={setCapacity}
+          syncMode={syncMode}
+          onSyncModeChange={setSyncMode}
+          busy={entryBusy}
+          onCreate={() => void allocate("create", password)}
+          onJoin={() => void allocate("join", password)}
+          statusBanner={
+            <StatusBanner kind={status.kind}>
+              {status.message ||
+                "Create a room with password on one device and share it or Join it on the others"}
+            </StatusBanner>
+          }
+        />
       )}
     </div>
   );

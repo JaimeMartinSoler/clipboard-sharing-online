@@ -31,11 +31,11 @@ ciphertext it has no way to decrypt.
 2. Type the **same password** on both (a passphrase — strength matters; see
    Security). On the first device, optionally set **how many terminals** may share
    this room (default **2**: this one + the joiner) and the **sharing mode**:
-   - **Live — Push to send** (default): you still click Push; the other
-     terminals receive it instantly.
-   - **Live — sync as you type**: the text auto-pushes shortly after you stop
+   - **Broadcast: Push Manual, Pull Auto** (default): you still click Push; the
+     other terminals receive it instantly.
+   - **Sync: Push & Pull Auto**: the text auto-pushes shortly after you stop
      typing; the others see it live.
-   - **Manual — Push & Pull**: nothing moves until each side clicks.
+   - **Manual: Push & Pull Manual**: nothing moves until each side clicks.
    The mode is fixed for the room's lifetime; joiners inherit it.
 3. **Join** the room on both devices. Joining claims a slot; once the room is
    full it is **sealed** — no further terminal can ever join *that* room. Push and
