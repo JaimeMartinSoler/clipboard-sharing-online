@@ -141,8 +141,9 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
 - Keep visual parity with `office-tools-online`: header, theme toggle, the panel
   aesthetic, the single always-on `StatusBanner`
   (`error > warning > info > validated`), on-hover `Hint` tooltips, a visible
-  "🔒 End-to-end encrypted — your password never leaves this browser" badge, and
-  a `/privacy` page. As a single-tool app, drop the multi-tool sidebar/registry
+  lock-icon "End-to-end encrypted — your password never leaves this browser"
+  badge, and a `/privacy` page. As a single-tool app, drop the multi-tool
+  sidebar/registry
   scaffolding.
 
 ## Commands

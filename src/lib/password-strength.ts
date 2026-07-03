@@ -1,52 +1,31 @@
 /**
- * Lightweight, dependency-free passphrase strength estimate.
+ * Practical, length-based passphrase feedback for the entry view.
  *
  * Security rests primarily on passphrase entropy (fixed-salt design — see
- * docs/SECURITY.md), so the UI nudges users toward long, varied passphrases.
- * This is a coarse entropy heuristic (character-class pool × length), NOT a
- * dictionary cracker — it intentionally rewards length most.
+ * docs/SECURITY.md), and length is by far the biggest lever a human controls.
+ * Rather than a fuzzy entropy number, this maps length to three plain tiers so
+ * the meter reads at a glance: type something, make it shareable, make it
+ * strong.
  */
-export type StrengthScore = 0 | 1 | 2 | 3 | 4;
+export type StrengthLevel = "none" | "weak" | "fair" | "strong";
 
 export interface PasswordStrength {
-  score: StrengthScore;
-  label: string;
-  /** Estimated entropy in bits (coarse). */
-  bits: number;
+  level: StrengthLevel;
+  /** How many of the three meter bars are filled (0..3). */
+  filledBars: 0 | 1 | 2 | 3;
 }
 
-const LABELS: Record<StrengthScore, string> = {
-  0: "Very weak",
-  1: "Weak",
-  2: "Fair",
-  3: "Strong",
-  4: "Very strong",
-};
-
-function poolSize(password: string): number {
-  let pool = 0;
-  if (/[a-z]/.test(password)) pool += 26;
-  if (/[A-Z]/.test(password)) pool += 26;
-  if (/[0-9]/.test(password)) pool += 10;
-  if (/[^a-zA-Z0-9]/.test(password)) pool += 33; // punctuation/space/etc.
-  return pool;
-}
-
-function scoreFromBits(bits: number): StrengthScore {
-  if (bits < 28) return 0;
-  if (bits < 40) return 1;
-  if (bits < 60) return 2;
-  if (bits < 80) return 3;
-  return 4;
-}
-
+/**
+ * Map a password to its strength tier purely by length:
+ *  - `none`   (0 chars)     — nothing typed yet
+ *  - `weak`   (1–3 chars)   — too short to be safe
+ *  - `fair`   (4–7 chars)   — usable and easy to remember for sharing
+ *  - `strong` (≥8 chars)    — hard to remember; share via link/QR instead
+ */
 export function estimatePassword(password: string): PasswordStrength {
-  if (password.length === 0) {
-    return { score: 0, label: "Empty", bits: 0 };
-  }
-  const pool = poolSize(password);
-  // log2(pool) bits of entropy per character (upper bound assuming randomness).
-  const bits = pool > 0 ? Math.round(password.length * Math.log2(pool)) : 0;
-  const score = scoreFromBits(bits);
-  return { score, label: LABELS[score], bits };
+  const len = password.length;
+  if (len === 0) return { level: "none", filledBars: 0 };
+  if (len < 4) return { level: "weak", filledBars: 1 };
+  if (len < 8) return { level: "fair", filledBars: 2 };
+  return { level: "strong", filledBars: 3 };
 }

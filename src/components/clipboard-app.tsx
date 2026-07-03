@@ -23,6 +23,7 @@ import {
 import { decrypt, deriveKeys, encrypt } from "@/lib/crypto";
 import { createDebounced, type Debounced } from "@/lib/debounce";
 import type { LiveUpdate } from "@/lib/live";
+import { generateSimplePassword } from "@/lib/password-gen";
 import { decodePasswordHash } from "@/lib/room-link";
 
 type Busy = EntryBusy | "push" | "pull";
@@ -87,7 +88,7 @@ export function ClipboardApp() {
   const [autoJoining, setAutoJoining] = useState(hasInboundShareLink);
   const [status, setStatus] = useState<Status>({
     kind: "info",
-    message: "Enter a shared password, then Create or Join a room.",
+    message: "",
   });
 
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
@@ -211,6 +212,18 @@ export function ClipboardApp() {
       setAutoJoining(false);
     }
   }, [allocate]);
+
+  // Seed the entry field with a simple random password on first load so users
+  // start from something usable (and are nudged to the Simple/Safer tools),
+  // never an empty box. Skipped when arriving via a share link, which supplies
+  // its own password. Runs in the browser only (WebCrypto).
+  const didSeed = useRef(false);
+  useEffect(() => {
+    if (didSeed.current) return;
+    didSeed.current = true;
+    if (hasInboundShareLink()) return;
+    setPassword((p) => (p.length === 0 ? generateSimplePassword() : p));
+  }, []);
 
   /**
    * Encrypt the current text and upload it. `silent` is the debounced
@@ -518,7 +531,9 @@ export function ClipboardApp() {
             onCreate={() => void allocate("create", password)}
             onJoin={() => void allocate("join", password)}
           />
-          <StatusBanner kind={status.kind}>{status.message}</StatusBanner>
+          {status.message && (
+            <StatusBanner kind={status.kind}>{status.message}</StatusBanner>
+          )}
         </>
       )}
     </div>
