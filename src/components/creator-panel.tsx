@@ -68,20 +68,28 @@ export function CreatorPanel({
       }
       setMembers(res.value);
       // Keep the creator's status line in sync with the live roster: a fresh
-      // count of joined terminals, sealed once the cap is reached.
+      // count of joined terminals, sealed once the cap is reached. An open room
+      // (capacity 0) never seals and has no target to wait for.
       const count = res.value.length;
-      const waiting = session.capacity - count;
-      onStatus(
-        waiting <= 0
-          ? {
-              kind: "validated",
-              message: `Room sealed (${count}/${session.capacity}) — sharing is locked to these terminals.`,
-            }
-          : {
-              kind: "info",
-              message: `Created as terminal ${session.slot} of ${session.capacity} — waiting for ${waiting} more.`,
-            },
-      );
+      if (session.capacity === 0) {
+        onStatus({
+          kind: "info",
+          message: `Open room — ${count} terminal${count === 1 ? "" : "s"} connected; anyone with the password can join.`,
+        });
+      } else {
+        const waiting = session.capacity - count;
+        onStatus(
+          waiting <= 0
+            ? {
+                kind: "validated",
+                message: `Room sealed (${count}/${session.capacity}) — sharing is locked to these terminals.`,
+              }
+            : {
+                kind: "info",
+                message: `Created as terminal ${session.slot} of ${session.capacity} — waiting for ${waiting} more.`,
+              },
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -181,8 +189,13 @@ export function CreatorPanel({
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <h3 className="text-xs font-medium text-muted-foreground">
-            Terminals ({members.length}/{session.capacity})
-            {session.sealed ? " · sealed" : ""}
+            Terminals ({members.length}/
+            {session.capacity === 0 ? "∞" : session.capacity})
+            {session.capacity === 0
+              ? " · open"
+              : session.sealed
+                ? " · sealed"
+                : ""}
           </h3>
           <Hint text="Refresh the list of connected terminals.">
             <Button

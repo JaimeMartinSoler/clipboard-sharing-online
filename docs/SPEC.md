@@ -95,7 +95,9 @@ ciphertext it has no way to decrypt.
 
 ## Configurable (sane defaults, document them)
 - **Terminals (capacity):** default **2**; clamped to a small range (1–6). Set
-  by whoever joins first; the room seals at this count.
+  by whoever joins first; the room seals at this count. A creator may instead
+  pick an **open room** (`capacity = 0`): no limit, never seals — trading the
+  seal-on-full protection for unbounded joining on one password.
 - **TTL:** default ~10 minutes; offer a small fixed set (e.g. 1 min / 10 min /
   1 hour) — shorter is safer.
 - **Max payload:** cap the *encrypted* size (e.g. 256 KB) and reject larger

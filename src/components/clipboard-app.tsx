@@ -23,7 +23,15 @@ import {
 import { decrypt, deriveKeys, encrypt } from "@/lib/crypto";
 import { createDebounced, type Debounced } from "@/lib/debounce";
 import type { LiveUpdate } from "@/lib/live";
-import { generateSimplePassword } from "@/lib/password-gen";
+import {
+  generateSaferPassword,
+  generateSimplePassword,
+} from "@/lib/password-gen";
+import {
+  loadPreferences,
+  type PasswordKind,
+  savePreferences,
+} from "@/lib/preferences";
 import { decodePasswordHash } from "@/lib/room-link";
 
 type Busy = EntryBusy | "push" | "pull";
@@ -72,8 +80,16 @@ function hasInboundShareLink(): boolean {
  * the socket is downstream-only.
  */
 export function ClipboardApp() {
+  // Initial values MUST equal DEFAULT_PREFERENCES so the server-rendered markup
+  // matches the first client render; the stored prefs are applied in a mount
+  // effect (post-hydration) to avoid a mismatch.
   const [password, setPassword] = useState("");
+  const [passwordKind, setPasswordKind] = useState<PasswordKind>("simple");
   const [showPassword, setShowPassword] = useState(true);
+  // Sealed (bounded, seals when full) vs open (unlimited, never seals). Open
+  // rooms are requested with capacity 0.
+  const [sealedRoom, setSealedRoom] = useState(true);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [capacity, setCapacity] = useState(2);
   const [syncMode, setSyncMode] = useState<SyncMode>("push");
   const [ttlMs, setTtlMs] = useState<number>(600_000);
@@ -139,7 +155,15 @@ export function ClipboardApp() {
           setStatus({ kind: "error", message: keys.error });
           return;
         }
-        const res = await joinRoom(keys.value.roomId, capacity, mode, syncMode);
+        // An open room is requested with capacity 0 (server never seals it).
+        // Ignored on join — the room already has its capacity.
+        const requestedCapacity = sealedRoom ? capacity : 0;
+        const res = await joinRoom(
+          keys.value.roomId,
+          requestedCapacity,
+          mode,
+          syncMode,
+        );
         if (!res.ok) {
           const kind = res.error === ApiError.SEALED ? "warning" : "error";
           setStatus({ kind, message: res.error });
@@ -171,6 +195,12 @@ export function ClipboardApp() {
         // is creator-only information. The creator gets the full picture.
         if (role !== "creator") {
           setStatus({ kind: "validated", message: "Joined the room." });
+        } else if (cap === 0) {
+          // Open room: no terminal limit, never sealed.
+          setStatus({
+            kind: "info",
+            message: `Created an open room — anyone with the password can join (you are terminal ${slot}).`,
+          });
         } else if (sealed) {
           setStatus({
             kind: "validated",
@@ -186,7 +216,7 @@ export function ClipboardApp() {
         setBusy(null);
       }
     },
-    [capacity, syncMode],
+    [capacity, sealedRoom, syncMode],
   );
 
   // Auto-join from an inbound `#p=…` share link, exactly once.
@@ -213,17 +243,59 @@ export function ClipboardApp() {
     }
   }, [allocate]);
 
-  // Seed the entry field with a simple random password on first load so users
-  // start from something usable (and are nudged to the Simple/Safer tools),
-  // never an empty box. Skipped when arriving via a share link, which supplies
-  // its own password. Runs in the browser only (WebCrypto).
-  const didSeed = useRef(false);
-  useEffect(() => {
-    if (didSeed.current) return;
-    didSeed.current = true;
-    if (hasInboundShareLink()) return;
-    setPassword((p) => (p.length === 0 ? generateSimplePassword() : p));
+  /** Generate a fresh random password and remember which style was used. */
+  const handleGeneratePassword = useCallback((kind: PasswordKind) => {
+    setPasswordKind(kind);
+    setPassword(
+      kind === "safer" ? generateSaferPassword() : generateSimplePassword(),
+    );
   }, []);
+
+  // Restore last-visit UI preferences (never the password) and seed the entry
+  // field with a fresh random password of the remembered style — so users start
+  // from something usable, never an empty box. Runs once, post-hydration, in the
+  // browser only (localStorage + WebCrypto). Skipped-seed when arriving via a
+  // share link, which supplies its own password.
+  const didLoadPrefs = useRef(false);
+  useEffect(() => {
+    if (didLoadPrefs.current) return;
+    didLoadPrefs.current = true;
+    const prefs = loadPreferences();
+    setPasswordKind(prefs.passwordKind);
+    setShowPassword(prefs.showPassword);
+    setSealedRoom(prefs.sealedRoom);
+    setAdvancedOpen(prefs.advancedOpen);
+    setCapacity(prefs.capacity);
+    setSyncMode(prefs.syncMode);
+    if (!hasInboundShareLink()) {
+      setPassword((p) =>
+        p.length === 0
+          ? prefs.passwordKind === "safer"
+            ? generateSaferPassword()
+            : generateSimplePassword()
+          : p,
+      );
+    }
+  }, []);
+
+  // Persist UI preferences whenever they change. The first run (initial mount,
+  // before the load effect's state settles) is skipped so we never clobber the
+  // stored blob with defaults.
+  const didInitSave = useRef(false);
+  useEffect(() => {
+    if (!didInitSave.current) {
+      didInitSave.current = true;
+      return;
+    }
+    savePreferences({
+      passwordKind,
+      showPassword,
+      advancedOpen,
+      sealedRoom,
+      capacity,
+      syncMode,
+    });
+  }, [passwordKind, showPassword, advancedOpen, sealedRoom, capacity, syncMode]);
 
   /**
    * Encrypt the current text and upload it. `silent` is the debounced
@@ -520,12 +592,17 @@ export function ClipboardApp() {
         <RoomEntry
           password={password}
           onPasswordChange={setPassword}
+          onGeneratePassword={handleGeneratePassword}
           showPassword={showPassword}
           onToggleShowPassword={() => setShowPassword((v) => !v)}
+          sealedRoom={sealedRoom}
+          onSealedRoomChange={setSealedRoom}
           capacity={capacity}
           onCapacityChange={setCapacity}
           syncMode={syncMode}
           onSyncModeChange={setSyncMode}
+          advancedOpen={advancedOpen}
+          onAdvancedOpenChange={setAdvancedOpen}
           busy={entryBusy}
           onCreate={() => void allocate("create", password)}
           onJoin={() => void allocate("join", password)}

@@ -157,8 +157,15 @@ validation, and uniform error responses that don't leak room existence.
   only into an existing, unsealed room. The role lives in `members.role` and
   gates the creator-only endpoints (a joiner gets `403`), never just the view.
 - **Atomic slot allocation.** `POST /api/rooms` runs inside a D1 transaction so a
-  slot is granted only when `sealed=0 AND COUNT(members WHERE room_id) < capacity`;
-  two terminals racing for the last slot cannot both win (no over-seal, no TOCTOU).
+  slot is granted only when `sealed=0 AND (capacity=0 OR COUNT(members WHERE
+  room_id) < capacity)`; two terminals racing for the last slot cannot both win
+  (no over-seal, no TOCTOU).
+- **Open rooms (`capacity = 0`).** A creator can opt out of the terminal cap
+  entirely (the "Open room" toggle). `capacity = 0` bypasses the join count check
+  and the seal step never fires (`… AND capacity > 0`), so `sealed` stays `0` and
+  the room admits unlimited terminals for its lifetime. This relaxes only the
+  seal-on-full access layer; the content E2EE, bearer tokens, size cap, and rate
+  limit are untouched.
 - **Tokens are bearer credentials.** On create/join the Worker generates a random,
   high-entropy token, stores only its **SHA-256 hash** in `members`, and returns
   the raw token once. The client keeps it **in memory only** (no localStorage —
@@ -183,7 +190,7 @@ validation, and uniform error responses that don't leak room existence.
 -- worker/migrations/0001_init.sql
 CREATE TABLE IF NOT EXISTS rooms (
   room_id    TEXT    PRIMARY KEY,   -- opaque, client-derived (see crypto)
-  capacity   INTEGER NOT NULL,      -- max terminals; default 2, clamped 1–6
+  capacity   INTEGER NOT NULL,      -- max terminals; default 2, 1–6; 0 = open (unbounded, never seals)
   ciphertext TEXT,                  -- base64url AES-GCM ciphertext (nullable until first push)
   iv         TEXT,                  -- base64url 96-bit nonce (nullable until first push)
   created_at INTEGER NOT NULL,      -- epoch ms
@@ -207,8 +214,9 @@ ALTER TABLE rooms ADD COLUMN sync_mode TEXT NOT NULL DEFAULT 'manual'; -- 'manua
 ```
 One `rooms` row per room (latest clipboard only) plus one `members` row per
 joined terminal — the first being the `creator`. A room is **sealed** once
-`rooms.sealed = 1` (set when `COUNT(members) >= capacity`, then permanent so a
-removed joiner never reopens a slot). `ciphertext`/`iv` are null
+`rooms.sealed = 1` (set when `capacity > 0 AND COUNT(members) >= capacity`, then
+permanent so a removed joiner never reopens a slot); an **open room**
+(`capacity = 0`) never seals. `ciphertext`/`iv` are null
 between joining and the first push. D1's primary gives strongly consistent
 reads, so a Push — and a freshly allocated slot — is visible to an immediate
 follow-up request, the property KV could not guarantee.

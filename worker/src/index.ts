@@ -108,12 +108,14 @@ function parseJoinBody(body: unknown): JoinBody | null {
     }
     syncMode = o.syncMode;
   }
-  let capacity = 2; // default; ignored on join (the room already has one)
+  // `0` is the open-room sentinel (no terminal limit, never sealed); `1`–`6` are
+  // the bounded seal-on-full sizes. Ignored on join (the room already has one).
+  let capacity = 2; // default
   if (o.capacity !== undefined) {
     if (
       typeof o.capacity !== "number" ||
       !Number.isInteger(o.capacity) ||
-      o.capacity < 1 ||
+      o.capacity < 0 ||
       o.capacity > 6
     ) {
       return null; // → 400 on bad capacity
