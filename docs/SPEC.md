@@ -94,7 +94,7 @@ ciphertext it has no way to decrypt.
   on the wire.
 
 ## Configurable (sane defaults, document them)
-- **Terminals (capacity):** default **2**; clamped to a small range (1–10). Set
+- **Terminals (capacity):** default **2**; clamped to a small range (1–6). Set
   by whoever joins first; the room seals at this count.
 - **TTL:** default ~10 minutes; offer a small fixed set (e.g. 1 min / 10 min /
   1 hour) — shorter is safer.

@@ -105,8 +105,10 @@ describe("POST /api/rooms — create/join roles, seal, capacity", () => {
 
   it("400s on bad capacity and bad mode", async () => {
     expect((await create("rc0", 0, "10.0.2.1")).status).toBe(400);
-    expect((await create("rc11", 11, "10.0.2.2")).status).toBe(400);
+    expect((await create("rc7", 7, "10.0.2.2")).status).toBe(400);
+    expect((await create("rc11", 11, "10.0.2.6")).status).toBe(400);
     expect((await create("rcf", 2.5, "10.0.2.3")).status).toBe(400);
+    expect((await create("rc6", 6, "10.0.2.4")).status).toBe(200); // 6 is the max
     const badMode = await post(
       { roomId: "rcm", mode: "nope" },
       "10.0.2.5",

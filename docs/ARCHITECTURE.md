@@ -183,7 +183,7 @@ validation, and uniform error responses that don't leak room existence.
 -- worker/migrations/0001_init.sql
 CREATE TABLE IF NOT EXISTS rooms (
   room_id    TEXT    PRIMARY KEY,   -- opaque, client-derived (see crypto)
-  capacity   INTEGER NOT NULL,      -- max terminals; default 2, clamped 1–10
+  capacity   INTEGER NOT NULL,      -- max terminals; default 2, clamped 1–6
   ciphertext TEXT,                  -- base64url AES-GCM ciphertext (nullable until first push)
   iv         TEXT,                  -- base64url 96-bit nonce (nullable until first push)
   created_at INTEGER NOT NULL,      -- epoch ms
