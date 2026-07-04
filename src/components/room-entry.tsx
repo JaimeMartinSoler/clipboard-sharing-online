@@ -202,7 +202,7 @@ export function RoomEntry({
             >
               <p className="text-xs text-muted-foreground">
                 These apply to a room <strong>you create</strong> — joining a
-                room uses the creator's choices.
+                room uses the creator&apos;s choices.
               </p>
 
               {/* Sealed / Open toggle */}
