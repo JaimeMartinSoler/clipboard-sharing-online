@@ -68,13 +68,13 @@ export function CreatorPanel({
       }
       setMembers(res.value);
       // Keep the creator's status line in sync with the live roster: a fresh
-      // count of joined terminals, sealed once the cap is reached. An open room
+      // count of joined terminals, sealed once the cap is reached. A public room
       // (capacity 0) never seals and has no target to wait for.
       const count = res.value.length;
       if (session.capacity === 0) {
         onStatus({
           kind: "info",
-          message: `Open room — ${count} terminal${count === 1 ? "" : "s"} connected; anyone with the password can join.`,
+          message: `Public room — ${count} terminal${count === 1 ? "" : "s"} connected; anyone with the password can join.`,
         });
       } else {
         const waiting = session.capacity - count;
@@ -82,7 +82,7 @@ export function CreatorPanel({
           waiting <= 0
             ? {
                 kind: "validated",
-                message: `Room sealed (${count}/${session.capacity}) — sharing is locked to these terminals.`,
+                message: `Private room sealed (${count}/${session.capacity}) — sharing is locked to these terminals.`,
               }
             : {
                 kind: "info",
@@ -192,10 +192,10 @@ export function CreatorPanel({
             Terminals ({members.length}/
             {session.capacity === 0 ? "∞" : session.capacity})
             {session.capacity === 0
-              ? " · open"
+              ? " · public"
               : session.sealed
-                ? " · sealed"
-                : ""}
+                ? " · private, sealed"
+                : " · private"}
           </h3>
           <Hint text="Refresh the list of connected terminals.">
             <Button

@@ -196,15 +196,15 @@ export function ClipboardApp() {
         if (role !== "creator") {
           setStatus({ kind: "validated", message: "Joined the room." });
         } else if (cap === 0) {
-          // Open room: no terminal limit, never sealed.
+          // Public room: no terminal limit, never sealed.
           setStatus({
             kind: "info",
-            message: `Created an open room — anyone with the password can join (you are terminal ${slot}).`,
+            message: `Created a public room — anyone with the password can join (you are terminal ${slot}).`,
           });
         } else if (sealed) {
           setStatus({
             kind: "validated",
-            message: `Room sealed (${slot}/${cap}) — sharing is locked to these terminals.`,
+            message: `Private room sealed (${slot}/${cap}) — sharing is locked to these terminals.`,
           });
         } else {
           setStatus({
