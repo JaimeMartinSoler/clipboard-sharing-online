@@ -29,8 +29,8 @@ export function record(h: History, next: string): History {
 }
 
 export function undo(h: History): History {
-  if (h.past.length === 0) return h;
   const previous = h.past[h.past.length - 1];
+  if (previous === undefined) return h;
   return {
     past: h.past.slice(0, -1),
     present: previous,
@@ -39,8 +39,8 @@ export function undo(h: History): History {
 }
 
 export function redo(h: History): History {
-  if (h.future.length === 0) return h;
   const [next, ...rest] = h.future;
+  if (next === undefined) return h;
   return {
     past: [...h.past, h.present],
     present: next,
