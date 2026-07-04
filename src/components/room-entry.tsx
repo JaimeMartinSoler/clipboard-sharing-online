@@ -125,7 +125,7 @@ export function RoomEntry({
             id="password"
             type={showPassword ? "text" : "password"}
             autoComplete="off"
-            placeholder="Type a room password for creator and joiners"
+            placeholder="Type room password for creator and joiners"
             value={password}
             onChange={(e) => onPasswordChange(e.target.value)}
             className="px-9 text-center"

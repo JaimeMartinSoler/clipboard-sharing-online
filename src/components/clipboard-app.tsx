@@ -534,7 +534,7 @@ export function ClipboardApp() {
               {status.message || (
                 <>
                   <strong>Share text</strong> across <strong>any device</strong>
-                  : Just <strong>create a room</strong> with a password on one
+                  : Just <strong>create a room</strong> with password on one
                   device and <strong>join</strong> from another
                 </>
               )}
