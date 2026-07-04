@@ -59,11 +59,10 @@ export function RoomEntry({
           Clipboard Sharing Online
         </h1>
         <p className="text-sm text-muted-foreground">
-          Share text between your phone, PC, laptop and tablet — no accounts, no
-          app to install. Agree on one password out-of-band,{" "}
-          <strong>Create</strong> a room on one device and <strong>Join</strong>{" "}
-          it on the others. Everything is encrypted in your browser; the server
-          only ever stores ciphertext it cannot read.
+          Agree on one password out-of-band. <strong>Create</strong> a room on
+          one device and <strong>Join</strong> it on the others. Text is
+          encrypted in your browser; the server only ever stores ciphertext it
+          cannot read.
         </p>
         <div>
           <E2EBadge />
