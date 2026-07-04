@@ -89,7 +89,9 @@ derivation is deterministic and the salt is fixed — see
 - **Sealed rooms (defense-in-depth).** A capped, sealable room protects content
   against a *later* password compromise. It is access control on top of the
   encryption, never a substitute — and membership is strictly in-memory, so a
-  reload forfeits the slot (see the privacy page).
+  reload forfeits the slot (see the privacy page). A creator can instead choose
+  an **open room** (no terminal limit, never seals) when unbounded sharing on one
+  password is what's wanted; the E2EE and every other guard are unchanged.
 
 ## Tech stack
 

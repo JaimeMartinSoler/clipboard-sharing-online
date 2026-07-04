@@ -1,15 +1,18 @@
 "use client";
 
 import {
+  ChevronDown,
   Code,
   Eye,
   EyeOff,
   Info,
   KeyRound,
   LockKeyhole,
+  LockKeyholeOpen,
   LogIn,
   Plus,
   RotateCcw,
+  Settings,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -19,11 +22,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { SyncMode } from "@/lib/api";
-import {
-  generateSaferPassword,
-  generateSimplePassword,
-} from "@/lib/password-gen";
 import { estimatePassword } from "@/lib/password-strength";
+import type { PasswordKind } from "@/lib/preferences";
+import { cn } from "@/lib/utils";
 
 export const CAPACITY_OPTIONS = [2, 3, 4, 5, 6];
 
@@ -46,16 +47,26 @@ export type EntryBusy = "create" | "join" | null;
  * The landing view: pick a shared password, then either Create a room (you
  * become its creator and set the terminal cap) or Join an existing one. The
  * password never leaves the browser — it only derives the room id + key.
+ *
+ * The Create/Join buttons sit up top (the section titles they replaced were
+ * redundant). The room's options live under a collapsed-by-default "Advanced
+ * Settings" panel so a first-time user can just create and go — they only
+ * apply to a room you create, never to joining.
  */
 export function RoomEntry({
   password,
   onPasswordChange,
+  onGeneratePassword,
   showPassword,
   onToggleShowPassword,
+  sealedRoom,
+  onSealedRoomChange,
   capacity,
   onCapacityChange,
   syncMode,
   onSyncModeChange,
+  advancedOpen,
+  onAdvancedOpenChange,
   busy,
   onCreate,
   onJoin,
@@ -63,12 +74,19 @@ export function RoomEntry({
 }: {
   password: string;
   onPasswordChange: (value: string) => void;
+  /** Generate a random password of the given style (parent remembers which). */
+  onGeneratePassword: (kind: PasswordKind) => void;
   showPassword: boolean;
   onToggleShowPassword: () => void;
+  /** Sealed (bounded, seals when full) vs open (unlimited, never seals). */
+  sealedRoom: boolean;
+  onSealedRoomChange: (value: boolean) => void;
   capacity: number;
   onCapacityChange: (value: number) => void;
   syncMode: SyncMode;
   onSyncModeChange: (value: SyncMode) => void;
+  advancedOpen: boolean;
+  onAdvancedOpenChange: (value: boolean) => void;
   busy: EntryBusy;
   onCreate: () => void;
   onJoin: () => void;
@@ -90,6 +108,18 @@ export function RoomEntry({
       </div>
 
       <section className="flex flex-col gap-3 rounded-lg border bg-card p-4">
+        {/* Primary actions up top — the buttons speak for themselves, so the
+            old "Create a room" / "Join a room" headings are gone. The room
+            password field sits just below them. */}
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Button onClick={onCreate} disabled={disabled}>
+            <Plus /> {busy === "create" ? "Creating…" : "Create room"}
+          </Button>
+          <Button variant="outline" onClick={onJoin} disabled={disabled}>
+            <LogIn /> {busy === "join" ? "Joining…" : "Join room"}
+          </Button>
+        </div>
+
         <div className="flex flex-wrap items-center justify-between gap-2">
           <label htmlFor="password" className="text-sm font-medium">
             Room password
@@ -103,7 +133,7 @@ export function RoomEntry({
               size="sm"
               variant="outline"
               className="w-full"
-              onClick={() => onPasswordChange(generateSimplePassword())}
+              onClick={() => onGeneratePassword("simple")}
               title="Generate a short random password that's easy to read aloud or retype"
             >
               <RotateCcw /> Password Simple
@@ -113,7 +143,7 @@ export function RoomEntry({
               size="sm"
               variant="outline"
               className="w-full"
-              onClick={() => onPasswordChange(generateSaferPassword())}
+              onClick={() => onGeneratePassword("safer")}
               title="Generate a long, high-entropy password — share it via the room's link or QR"
             >
               <KeyRound /> Password Safer
@@ -145,82 +175,131 @@ export function RoomEntry({
         </div>
         <PasswordStrengthMeter password={password} />
 
-        <div className="mt-1 grid gap-4 sm:grid-cols-2">
-          {/* Create */}
-          <div className="flex flex-col gap-2 rounded-md border border-dashed p-3">
-            <div className="text-sm font-medium">Create a room</div>
-            <p className="text-xs text-muted-foreground">
-              You become the creator and set how many terminals may share it. The
-              room seals when full.
-            </p>
-            <label
-              htmlFor="capacity"
-              className="flex flex-col gap-1 text-xs text-muted-foreground"
-            >
-              Terminals
-              <Select
-                id="capacity"
-                containerClassName="w-full"
-                className="w-full text-center"
-                value={capacity}
-                onChange={(e) => onCapacityChange(Number(e.target.value))}
-                aria-label="Terminals"
-                title="How many devices may share this room. The room seals at this count; only the creator sets it."
-              >
-                {CAPACITY_OPTIONS.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            <label
-              htmlFor="sync-mode"
-              className="flex flex-col gap-1 text-xs text-muted-foreground"
-            >
-              Sharing mode
-              <Select
-                id="sync-mode"
-                containerClassName="w-full"
-                className="w-full"
-                value={syncMode}
-                onChange={(e) => onSyncModeChange(e.target.value as SyncMode)}
-                aria-label="Sharing mode"
-                title="How text reaches the other terminals. Live modes deliver instantly over an encrypted connection; Manual keeps explicit Push and Pull only. Fixed for the room's lifetime."
-              >
-                {SYNC_MODE_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            <Button
-              size="sm"
-              className="mt-auto"
-              onClick={onCreate}
-              disabled={disabled}
-            >
-              <Plus /> {busy === "create" ? "Creating…" : "Create room"}
-            </Button>
-          </div>
+        {/* Advanced settings — collapsed by default, applies to created rooms. */}
+        <div className="rounded-md border">
+          <button
+            type="button"
+            aria-expanded={advancedOpen}
+            aria-controls="advanced-settings"
+            onClick={() => onAdvancedOpenChange(!advancedOpen)}
+            className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-muted/50"
+          >
+            <span className="flex items-center gap-2">
+              <Settings className="size-4 text-muted-foreground" />
+              Advanced Settings
+            </span>
+            <ChevronDown
+              className={cn(
+                "size-4 text-muted-foreground transition-transform",
+                advancedOpen && "rotate-180",
+              )}
+            />
+          </button>
 
-          {/* Join */}
-          <div className="flex flex-col gap-2 rounded-md border border-dashed p-3">
-            <div className="text-sm font-medium">Join a room</div>
-            <p className="text-xs text-muted-foreground">
-              Join a room someone else created with this password — or just open
-              their share link, which joins automatically.
-            </p>
-            <Button
-              size="sm"
-              className="mt-auto"
-              onClick={onJoin}
-              disabled={disabled}
+          {advancedOpen && (
+            <div
+              id="advanced-settings"
+              className="flex flex-col gap-3 border-t p-3"
             >
-              <LogIn /> {busy === "join" ? "Joining…" : "Join room"}
-            </Button>
-          </div>
+              <p className="text-xs text-muted-foreground">
+                These apply to a room <strong>you create</strong> — joining a
+                room uses the creator&apos;s settings.
+              </p>
+
+              {/* Private / Public toggle */}
+              <div className="flex flex-col gap-1">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={sealedRoom}
+                  aria-label={sealedRoom ? "Private room" : "Public room"}
+                  onClick={() => onSealedRoomChange(!sealedRoom)}
+                  className="flex items-center justify-between gap-3 rounded-md border p-3 text-left transition-colors hover:bg-muted/50"
+                >
+                  <span className="flex items-center gap-2 text-sm font-medium">
+                    {sealedRoom ? (
+                      <LockKeyhole className="size-4 text-foreground" />
+                    ) : (
+                      <LockKeyholeOpen className="size-4 text-muted-foreground" />
+                    )}
+                    {sealedRoom ? "Private room" : "Public room"}
+                  </span>
+                  <span
+                    className={cn(
+                      "relative h-5 w-9 shrink-0 rounded-full transition-colors",
+                      sealedRoom ? "bg-primary" : "bg-input",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "absolute top-0.5 size-4 rounded-full bg-background shadow-sm transition-transform",
+                        sealedRoom ? "translate-x-4" : "translate-x-0.5",
+                      )}
+                    />
+                  </span>
+                </button>
+                <p className="text-xs text-muted-foreground">
+                  {sealedRoom
+                    ? "Seals once the terminal limit is reached — no one else can join, ever."
+                    : "No terminal limit — anyone with the password can join at any time."}
+                </p>
+              </div>
+
+              {/* Terminals — only meaningful for a sealed room. */}
+              <label
+                htmlFor="capacity"
+                className={cn(
+                  "flex flex-col gap-1 text-xs",
+                  sealedRoom ? "text-muted-foreground" : "text-muted-foreground/60",
+                )}
+              >
+                Terminals
+                <Select
+                  id="capacity"
+                  containerClassName="w-full"
+                  className="w-full text-center"
+                  value={sealedRoom ? capacity : 0}
+                  disabled={!sealedRoom}
+                  onChange={(e) => onCapacityChange(Number(e.target.value))}
+                  aria-label="Terminals"
+                  title="How many devices may share this room. The room seals at this count. A public room has no limit."
+                >
+                  {sealedRoom ? (
+                    CAPACITY_OPTIONS.map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))
+                  ) : (
+                    <option value={0}>∞ (no limit for public rooms)</option>
+                  )}
+                </Select>
+              </label>
+
+              {/* Sharing mode */}
+              <label
+                htmlFor="sync-mode"
+                className="flex flex-col gap-1 text-xs text-muted-foreground"
+              >
+                Sharing mode
+                <Select
+                  id="sync-mode"
+                  containerClassName="w-full"
+                  className="w-full"
+                  value={syncMode}
+                  onChange={(e) => onSyncModeChange(e.target.value as SyncMode)}
+                  aria-label="Sharing mode"
+                  title="How text reaches the other terminals. Live modes deliver instantly over an encrypted connection; Manual keeps explicit Push and Pull only. Fixed for the room's lifetime."
+                >
+                  {SYNC_MODE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+            </div>
+          )}
         </div>
       </section>
 
@@ -241,7 +320,8 @@ export function RoomEntry({
         <p className="flex items-start gap-2">
           <Users className="mt-0.5 size-4 shrink-0 text-foreground" />
           <span>
-            <strong>Rooms are sealed</strong>, once full no one else can enter
+            <strong>Rooms can be private</strong>, sealing when full so no one
+            else can enter
           </span>
         </p>
         <p className="flex items-start gap-2">

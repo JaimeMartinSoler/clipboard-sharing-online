@@ -97,7 +97,8 @@ export interface JoinResult {
   joined: boolean;
   /** Your 1-based terminal number after joining (== current member count). */
   slot: number;
-  /** The room's capacity (set by the creator). */
+  /** The room's capacity (set by the creator). `0` ⇒ an open room: no terminal
+   *  limit, never sealed — anyone with the password may join at any time. */
   capacity: number;
   /** Whether the room is sealed (full, or was full and is now locked). */
   sealed: boolean;
@@ -135,6 +136,11 @@ interface RoomStat {
  * on join, insert a joiner only if the room is live, unsealed, and has a free
  * slot; seal if now full; then read back capacity/sealed/member-count in the
  * SAME transaction so the reported slot is this joiner's, not a later racer's.
+ *
+ * An **open room** (`capacity === 0`) has no terminal limit: the join guard's
+ * capacity check is bypassed and the seal step never fires, so `sealed` stays 0
+ * forever and anyone with the password can keep joining. This is a UX-level
+ * relaxation of the seal-on-full access layer only — it never touches the E2EE.
  */
 export async function allocateSlot(
   db: D1Database,
@@ -157,9 +163,11 @@ export async function allocateSlot(
       "DELETE FROM members WHERE room_id = ? AND NOT EXISTS (SELECT 1 FROM rooms WHERE rooms.room_id = members.room_id)",
     )
     .bind(roomId);
+  // `capacity > 0` keeps open rooms (capacity 0) from ever sealing: without it
+  // COUNT(members) >= 0 is always true and the first join would seal them.
   const seal = db
     .prepare(
-      "UPDATE rooms SET sealed = 1 WHERE room_id = ? AND (SELECT COUNT(*) FROM members WHERE room_id = ?) >= capacity",
+      "UPDATE rooms SET sealed = 1 WHERE room_id = ? AND capacity > 0 AND (SELECT COUNT(*) FROM members WHERE room_id = ?) >= capacity",
     )
     .bind(roomId, roomId);
   const readBack = db
@@ -191,11 +199,13 @@ export async function allocateSlot(
     // Never create the room on join. Insert a joiner only into a live, unsealed
     // room with a free slot. Failure with a room present ⇒ "sealed"; absent ⇒
     // "not_found".
+    // `capacity = 0 OR count < capacity` lets an open room (capacity 0) always
+    // accept another joiner while a bounded room still stops at its limit.
     const insertJoiner = db
       .prepare(
-        "INSERT INTO members (room_id, token_hash, joined_at, role) SELECT ?, ?, ?, 'joiner' WHERE EXISTS (SELECT 1 FROM rooms WHERE room_id = ? AND expires_at > ?) AND (SELECT sealed FROM rooms WHERE room_id = ?) = 0 AND (SELECT COUNT(*) FROM members WHERE room_id = ?) < (SELECT capacity FROM rooms WHERE room_id = ?)",
+        "INSERT INTO members (room_id, token_hash, joined_at, role) SELECT ?, ?, ?, 'joiner' WHERE EXISTS (SELECT 1 FROM rooms WHERE room_id = ? AND expires_at > ?) AND (SELECT sealed FROM rooms WHERE room_id = ?) = 0 AND ((SELECT capacity FROM rooms WHERE room_id = ?) = 0 OR (SELECT COUNT(*) FROM members WHERE room_id = ?) < (SELECT capacity FROM rooms WHERE room_id = ?))",
       )
-      .bind(roomId, tokenHash, now, roomId, now, roomId, roomId, roomId);
+      .bind(roomId, tokenHash, now, roomId, now, roomId, roomId, roomId, roomId);
     insertIndex = 2;
     statements = [dropExpired, dropOrphans, insertJoiner, seal, readBack];
   }

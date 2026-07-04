@@ -89,16 +89,21 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   room (`mode:"create"`, becomes the sole `creator`, sets `capacity`, default 2,
   clamped 1–6); others **join** (`mode:"join"`, `joiner`). When full the room is
   **sealed** (`rooms.sealed=1`, set atomically, **never reset**) — no further
-  join, ever, for that room instance. This is a defense-in-depth access layer on
-  top of the E2EE (see `docs/SECURITY.md`), never a substitute. Slot allocation
+  join, ever, for that room instance. A creator may instead make an **open room**
+  (`capacity = 0`, the "Open room" toggle in Advanced Settings): no terminal
+  limit, `sealed` stays `0` forever, anyone with the password can keep joining.
+  This only relaxes the seal-on-full access layer — the content E2EE, membership
+  tokens, size cap, and rate limit are unchanged. This is a defense-in-depth
+  access layer on top of the E2EE (see `docs/SECURITY.md`), never a substitute. Slot allocation
   is **atomic** (D1 transaction, no over-seal). Create/Join returns a random
   bearer **token**; the server stores only its **SHA-256 hash** + role. The client
   keeps the token **in memory only** — strict, no persistence: a reload/closed tab
   forfeits the slot (it still counts against the cap). The creator may **revoke** a
   joiner (deletes the member row) but the slot stays sealed and does not reopen.
 - **API surface** (`worker/`): `POST /api/rooms` (`mode:"create"|"join"`,
-  optional `syncMode` on create, atomic slot allocation, `409` when sealed / on
-  a create collision, `404` joining a missing room, returns `{token, joined,
+  optional `syncMode` on create, `capacity` 0–6 where **0 = open room** (default
+  2, `400` outside range), atomic slot allocation, `409` when sealed / on a
+  create collision, `404` joining a missing room, returns `{token, joined,
   capacity, sealed, role, syncMode}`); `POST /api/clipboard` (write
   ciphertext+iv + `expires_at` — direct to D1 for manual rooms, through the
   room's DO with broadcast for live rooms); `GET /api/clipboard/:roomId` (fetch
@@ -122,8 +127,10 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
 - **D1 schema.** `rooms`: `room_id` (PK, opaque), `capacity`, `sealed`,
   `sync_mode` (`'manual'|'push'|'typing'`, default `'manual'`),
   `ciphertext`/`iv` (nullable until first push), `created_at`, `expires_at`.
-  `members`: `id`, `room_id`, `token_hash`, `role`, `joined_at`. Sealed ⇔
-  `rooms.sealed=1` (set when member count first ≥ capacity; write-once).
+  `members`: `id`, `room_id`, `token_hash`, `role`, `joined_at`. `capacity = 0`
+  is the **open-room** sentinel (unbounded, never seals). Sealed ⇔
+  `rooms.sealed=1` (set when member count first ≥ capacity *and* `capacity > 0`;
+  write-once).
   Push is a guarded `UPDATE … WHERE expires_at > now` (never resurrects);
   index `expires_at` and `members.room_id`. Room, members, and blob expire
   together (lazy delete + cron; the DO's alarm closes live sockets at TTL).
@@ -145,6 +152,16 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   badge, and a `/privacy` page. As a single-tool app, drop the multi-tool
   sidebar/registry
   scaffolding.
+- **Entry view** puts the Create/Join buttons on top and tucks the room options
+  (Sealed/Open toggle, Terminals, Sharing mode) under a collapsed-by-default
+  **Advanced Settings** panel — simple by default, configurable on demand.
+- **Entry-view UI preferences persist** to `localStorage` via the pure,
+  unit-tested `src/lib/preferences.ts` (namespaced `cso.ui.v1`): the last
+  password *generator style*, show/hide, the Advanced Settings open state, and
+  its choices (sealed/open, capacity, sync mode). The **password itself is never
+  stored** — only the generator kind, used to reseed a fresh one. Theme is
+  persisted separately by `next-themes`. Reads are total (SSR/corruption-safe →
+  defaults); prefs are applied in a post-hydration effect so SSR markup matches.
 
 ## Commands
 - Frontend (root): `pnpm dev` / `pnpm build` (→ `./out`) / `pnpm test` / `pnpm lint`.
