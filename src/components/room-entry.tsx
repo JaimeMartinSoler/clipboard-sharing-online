@@ -108,6 +108,18 @@ export function RoomEntry({
       </div>
 
       <section className="flex flex-col gap-3 rounded-lg border bg-card p-4">
+        {/* Primary actions up top — the buttons speak for themselves, so the
+            old "Create a room" / "Join a room" headings are gone. The room
+            password field sits just below them. */}
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Button onClick={onCreate} disabled={disabled}>
+            <Plus /> {busy === "create" ? "Creating…" : "Create room"}
+          </Button>
+          <Button variant="outline" onClick={onJoin} disabled={disabled}>
+            <LogIn /> {busy === "join" ? "Joining…" : "Join room"}
+          </Button>
+        </div>
+
         <div className="flex flex-wrap items-center justify-between gap-2">
           <label htmlFor="password" className="text-sm font-medium">
             Room password
@@ -163,17 +175,6 @@ export function RoomEntry({
         </div>
         <PasswordStrengthMeter password={password} />
 
-        {/* Primary actions up top — the buttons speak for themselves, so the
-            old "Create a room" / "Join a room" headings are gone. */}
-        <div className="mt-1 grid gap-2 sm:grid-cols-2">
-          <Button onClick={onCreate} disabled={disabled}>
-            <Plus /> {busy === "create" ? "Creating…" : "Create room"}
-          </Button>
-          <Button variant="outline" onClick={onJoin} disabled={disabled}>
-            <LogIn /> {busy === "join" ? "Joining…" : "Join room"}
-          </Button>
-        </div>
-
         {/* Advanced settings — collapsed by default, applies to created rooms. */}
         <div className="rounded-md border">
           <button
@@ -202,16 +203,16 @@ export function RoomEntry({
             >
               <p className="text-xs text-muted-foreground">
                 These apply to a room <strong>you create</strong> — joining a
-                room uses the creator&apos;s choices.
+                room uses the creator&apos;s settings.
               </p>
 
-              {/* Sealed / Open toggle */}
+              {/* Private / Public toggle */}
               <div className="flex flex-col gap-1">
                 <button
                   type="button"
                   role="switch"
                   aria-checked={sealedRoom}
-                  aria-label={sealedRoom ? "Sealed room" : "Open room"}
+                  aria-label={sealedRoom ? "Private room" : "Public room"}
                   onClick={() => onSealedRoomChange(!sealedRoom)}
                   className="flex items-center justify-between gap-3 rounded-md border p-3 text-left transition-colors hover:bg-muted/50"
                 >
@@ -221,7 +222,7 @@ export function RoomEntry({
                     ) : (
                       <LockKeyholeOpen className="size-4 text-muted-foreground" />
                     )}
-                    {sealedRoom ? "Sealed room" : "Open room"}
+                    {sealedRoom ? "Private room" : "Public room"}
                   </span>
                   <span
                     className={cn(
@@ -256,18 +257,22 @@ export function RoomEntry({
                 <Select
                   id="capacity"
                   containerClassName="w-full"
-                  className="w-full text-center"
-                  value={capacity}
+                  className={cn("w-full", sealedRoom ? "text-center" : "")}
+                  value={sealedRoom ? capacity : 0}
                   disabled={!sealedRoom}
                   onChange={(e) => onCapacityChange(Number(e.target.value))}
                   aria-label="Terminals"
-                  title="How many devices may share this room. The room seals at this count. Disabled for an open room, which has no limit."
+                  title="How many devices may share this room. The room seals at this count. A public room has no limit."
                 >
-                  {CAPACITY_OPTIONS.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
+                  {sealedRoom ? (
+                    CAPACITY_OPTIONS.map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))
+                  ) : (
+                    <option value={0}>∞ (no limit for public rooms)</option>
+                  )}
                 </Select>
               </label>
 
@@ -315,7 +320,8 @@ export function RoomEntry({
         <p className="flex items-start gap-2">
           <Users className="mt-0.5 size-4 shrink-0 text-foreground" />
           <span>
-            <strong>Rooms are sealed</strong>, once full no one else can enter
+            <strong>Rooms can be private</strong>, sealing when full so no one
+            else can enter
           </span>
         </p>
         <p className="flex items-start gap-2">
