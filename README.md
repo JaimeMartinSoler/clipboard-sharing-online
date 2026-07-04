@@ -21,11 +21,11 @@ encryption**.
 1. Open the site and type a **long shared password** (strength matters).
 2. On one device, **Create** the room — you become its **creator** and set **how
    many terminals** may share it (default 2) plus the **sharing mode**:
-   - **Live — Push to send** (default): you click Push; the other terminals
-     receive it **instantly** over an encrypted WebSocket.
-   - **Live — sync as you type**: the text auto-pushes shortly after you stop
+   - **Broadcast: Push Manual, Pull Auto** (default): you click Push; the other
+     terminals receive it **instantly** over an encrypted WebSocket.
+   - **Sync: Push & Pull Auto**: the text auto-pushes shortly after you stop
      typing; the others see it live.
-   - **Manual — Push & Pull**: the classic explicit flow, no socket at all.
+   - **Manual: Push & Pull Manual**: the classic explicit flow, no socket at all.
    On the others, **Join** with the same password (or open the creator's share
    link, which joins automatically) — joiners inherit the room's mode.
 3. Joining claims a slot; once full the room is **sealed** — no further terminal
