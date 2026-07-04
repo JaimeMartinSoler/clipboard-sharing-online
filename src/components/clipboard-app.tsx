@@ -5,9 +5,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CreatorPanel } from "@/components/creator-panel";
 import { E2EBadge } from "@/components/e2e-badge";
 import { Hint } from "@/components/hint";
+import { PrivacyHighlights } from "@/components/privacy-highlights";
 import { RoomEditor } from "@/components/room-editor";
 import { type EntryBusy, RoomEntry } from "@/components/room-entry";
 import type { ConflictPolicy, Session, Status } from "@/components/room-types";
+import { ShareControls } from "@/components/share-controls";
 import { StatusBanner } from "@/components/status-banner";
 import { Button } from "@/components/ui/button";
 import { useLiveRoom } from "@/components/use-live-room";
@@ -33,6 +35,15 @@ import {
   savePreferences,
 } from "@/lib/preferences";
 import { decodePasswordHash } from "@/lib/room-link";
+import {
+  canRedo as histCanRedo,
+  canUndo as histCanUndo,
+  type History,
+  initHistory,
+  record as histRecord,
+  redo as histRedo,
+  undo as histUndo,
+} from "@/lib/text-history";
 
 type Busy = EntryBusy | "push" | "pull";
 
@@ -93,7 +104,9 @@ export function ClipboardApp() {
   const [capacity, setCapacity] = useState(2);
   const [syncMode, setSyncMode] = useState<SyncMode>("push");
   const [ttlMs, setTtlMs] = useState<number>(600_000);
-  const [text, setText] = useState("");
+  // The text box is backed by an undo/redo history; `present` is what's shown.
+  const [history, setHistory] = useState<History>(() => initHistory(""));
+  const text = history.present;
   const [conflictPolicy, setConflictPolicy] =
     useState<ConflictPolicy>("overwrite");
 
@@ -145,6 +158,30 @@ export function ClipboardApp() {
     setExpiresAt(null);
   }, []);
 
+  /** Replace the text box and reset its undo/redo history (join/leave/nuke). */
+  const resetText = useCallback((value: string) => {
+    setHistory(initHistory(value));
+    textRef.current = value;
+  }, []);
+
+  /** Set the text box, recording an undoable step (pull / live update / clear). */
+  const commitText = useCallback((value: string) => {
+    setHistory((h) => histRecord(h, value));
+    textRef.current = value;
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    setHistory((h) => histUndo(h));
+    // Undo/redo is an edit too: in typing mode, arm the auto-push (it no-ops if
+    // the restored value already matches what the server last saw).
+    debouncerRef.current?.call();
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    setHistory((h) => histRedo(h));
+    debouncerRef.current?.call();
+  }, []);
+
   /** Derive keys from a password and create/join a room. */
   const allocate = useCallback(
     async (mode: JoinMode, pw: string) => {
@@ -188,7 +225,7 @@ export function ClipboardApp() {
           // The stored mode: on join this is the creator's choice, not ours.
           syncMode: roomSyncMode,
         });
-        setText("");
+        resetText("");
         lastSyncedRef.current = "";
         setExpiresAt(null);
         // Joiners see no room-status detail (slot counts / sealed state); that
@@ -216,7 +253,7 @@ export function ClipboardApp() {
         setBusy(null);
       }
     },
-    [capacity, sealedRoom, syncMode],
+    [capacity, sealedRoom, syncMode, resetText],
   );
 
   // Auto-join from an inbound `#p=…` share link, exactly once.
@@ -357,7 +394,7 @@ export function ClipboardApp() {
 
   /** Textarea edits; in `typing` mode every keystroke arms the auto-push. */
   const handleTextChange = useCallback((value: string) => {
-    setText(value);
+    setHistory((h) => histRecord(h, value));
     textRef.current = value;
     debouncerRef.current?.call();
   }, []);
@@ -397,13 +434,12 @@ export function ClipboardApp() {
       setStatus({ kind: "error", message: dec.error });
       return;
     }
-    setText(dec.value);
-    textRef.current = dec.value;
+    commitText(dec.value);
     lastSyncedRef.current = dec.value;
     setExpiresAt(update.expiresAt);
     setNow(Date.now());
     setStatus({ kind: "info", message: "Live update received." });
-  }, []);
+  }, [commitText]);
 
   const liveStatus = useLiveRoom(session, {
     // Catch up on whatever was pushed before/while we were disconnected.
@@ -419,7 +455,7 @@ export function ClipboardApp() {
     onUpdate: (update) => void applyRemote(update),
     onRevoked: () => {
       dropSession();
-      setText("");
+      resetText("");
       setStatus({
         kind: "error",
         message: "You were removed from this room by the creator.",
@@ -427,7 +463,7 @@ export function ClipboardApp() {
     },
     onRoomGone: () => {
       dropSession();
-      setText("");
+      resetText("");
       setStatus({
         kind: "error",
         message: "This room was removed or expired.",
@@ -465,8 +501,7 @@ export function ClipboardApp() {
       }
       // An explicit Pull is the user asking for the server's copy: it always
       // applies, clearing any "new content received" warning state.
-      setText(dec.value);
-      textRef.current = dec.value;
+      commitText(dec.value);
       lastSyncedRef.current = dec.value;
       setExpiresAt(res.value.expiresAt);
       setNow(Date.now());
@@ -474,7 +509,7 @@ export function ClipboardApp() {
     } finally {
       setBusy(null);
     }
-  }, [session, dropSession]);
+  }, [session, dropSession, commitText]);
 
   // Clear is local-only: it empties the text box here without touching the
   // server. The shared blob is only replaced/removed via Push. (In typing
@@ -482,21 +517,20 @@ export function ClipboardApp() {
   // synced by a stray timer.)
   const handleClear = useCallback(() => {
     debouncerRef.current?.cancel();
-    setText("");
-    textRef.current = "";
+    commitText("");
     setStatus({ kind: "info", message: "Cleared the text box." });
-  }, []);
+  }, [commitText]);
 
   const handleLeave = useCallback(() => {
     debouncerRef.current?.cancel();
     dropSession();
-    setText("");
+    resetText("");
     setStatus({
       kind: "info",
       message:
         "Left the room — your slot is forfeited (it still counts until the room expires).",
     });
-  }, [dropSession]);
+  }, [dropSession, resetText]);
 
   const handleRemoveRoom = useCallback(async () => {
     if (!session) return;
@@ -507,12 +541,12 @@ export function ClipboardApp() {
       return;
     }
     dropSession();
-    setText("");
+    resetText("");
     setStatus({
       kind: "info",
       message: "Room removed — content and all members were deleted.",
     });
-  }, [session, dropSession]);
+  }, [session, dropSession, resetText]);
 
   const handleSessionInvalid = useCallback(() => {
     dropSession();
@@ -543,19 +577,6 @@ export function ClipboardApp() {
               </div>
             )}
           </div>
-          <div>
-            <E2EBadge />
-          </div>
-
-          {session.role === "creator" && (
-            <CreatorPanel
-              session={session}
-              password={password}
-              onStatus={setStatus}
-              onSessionInvalid={handleSessionInvalid}
-              onRemoveRoom={handleRemoveRoom}
-            />
-          )}
 
           <StatusBanner kind={status.kind}>
             {status.message}
@@ -570,6 +591,10 @@ export function ClipboardApp() {
           <RoomEditor
             text={text}
             onTextChange={handleTextChange}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+            canUndo={histCanUndo(history)}
+            canRedo={histCanRedo(history)}
             ttlMs={ttlMs}
             onTtlChange={setTtlMs}
             busy={busy === "push" || busy === "pull" ? busy : null}
@@ -582,6 +607,21 @@ export function ClipboardApp() {
             conflictPolicy={conflictPolicy}
             onConflictPolicyChange={setConflictPolicy}
           />
+
+          {/* Sharing is available to every member; room administration (roster
+              + Remove room) stays creator-only. Both live below the editor. */}
+          <ShareControls password={password} />
+
+          {session.role === "creator" && (
+            <CreatorPanel
+              session={session}
+              onStatus={setStatus}
+              onSessionInvalid={handleSessionInvalid}
+              onRemoveRoom={handleRemoveRoom}
+            />
+          )}
+
+          <PrivacyHighlights />
         </>
       ) : autoJoining ? (
         <div className="flex flex-col items-center gap-3 py-16 text-center text-sm text-muted-foreground">
