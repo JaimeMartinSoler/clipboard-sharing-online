@@ -257,7 +257,7 @@ export function RoomEntry({
                 <Select
                   id="capacity"
                   containerClassName="w-full"
-                  className={cn("w-full", sealedRoom ? "text-center" : "")}
+                  className="w-full text-center"
                   value={sealedRoom ? capacity : 0}
                   disabled={!sealedRoom}
                   onChange={(e) => onCapacityChange(Number(e.target.value))}
