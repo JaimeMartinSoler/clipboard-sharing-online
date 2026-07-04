@@ -87,7 +87,7 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   `warn` keeps unsaved edits).
 - **Create/Join roles + terminal cap (seal-on-full).** One device **creates** the
   room (`mode:"create"`, becomes the sole `creator`, sets `capacity`, default 2,
-  clamped 1–10); others **join** (`mode:"join"`, `joiner`). When full the room is
+  clamped 1–6); others **join** (`mode:"join"`, `joiner`). When full the room is
   **sealed** (`rooms.sealed=1`, set atomically, **never reset**) — no further
   join, ever, for that room instance. This is a defense-in-depth access layer on
   top of the E2EE (see `docs/SECURITY.md`), never a substitute. Slot allocation
@@ -141,8 +141,9 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
 - Keep visual parity with `office-tools-online`: header, theme toggle, the panel
   aesthetic, the single always-on `StatusBanner`
   (`error > warning > info > validated`), on-hover `Hint` tooltips, a visible
-  "🔒 End-to-end encrypted — your password never leaves this browser" badge, and
-  a `/privacy` page. As a single-tool app, drop the multi-tool sidebar/registry
+  lock-icon "End-to-end encrypted — your password never leaves this browser"
+  badge, and a `/privacy` page. As a single-tool app, drop the multi-tool
+  sidebar/registry
   scaffolding.
 
 ## Commands

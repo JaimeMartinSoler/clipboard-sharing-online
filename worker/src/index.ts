@@ -114,7 +114,7 @@ function parseJoinBody(body: unknown): JoinBody | null {
       typeof o.capacity !== "number" ||
       !Number.isInteger(o.capacity) ||
       o.capacity < 1 ||
-      o.capacity > 10
+      o.capacity > 6
     ) {
       return null; // → 400 on bad capacity
     }

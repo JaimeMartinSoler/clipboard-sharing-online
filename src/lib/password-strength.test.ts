@@ -1,41 +1,86 @@
 import { describe, expect, it } from "vitest";
-import { estimatePassword } from "./password-strength";
+import { estimatePassword, isWeakPassword } from "./password-strength";
 
 describe("estimatePassword", () => {
-  it("treats the empty string as the weakest", () => {
+  it("treats the empty string as 'none' with no filled bars", () => {
     const r = estimatePassword("");
-    expect(r.score).toBe(0);
-    expect(r.bits).toBe(0);
+    expect(r.level).toBe("none");
+    expect(r.filledBars).toBe(0);
   });
 
-  it("rates a short single-class password as weak", () => {
-    expect(estimatePassword("aaaa").score).toBeLessThanOrEqual(1);
-    expect(estimatePassword("password").score).toBeLessThanOrEqual(1);
+  it("rates 1–3 chars as 'weak' with one bar", () => {
+    for (const pw of ["a", "ab", "abc"]) {
+      const r = estimatePassword(pw);
+      expect(r.level).toBe("weak");
+      expect(r.filledBars).toBe(1);
+    }
   });
 
-  it("rates a long multi-word passphrase as very strong", () => {
-    const r = estimatePassword("correct horse battery staple 42");
-    expect(r.score).toBe(4);
-    expect(r.bits).toBeGreaterThanOrEqual(80);
+  it("rates ordinary 4–7 char passwords as 'fair' with two bars", () => {
+    for (const pw of ["t9kd", "m4xz", "Rp7q", "k3Wm9"]) {
+      const r = estimatePassword(pw);
+      expect(r.level).toBe("fair");
+      expect(r.filledBars).toBe(2);
+    }
   });
 
-  it("rewards length: more characters never lowers the entropy estimate", () => {
-    const short = estimatePassword("Tr0ub4d");
-    const long = estimatePassword("Tr0ub4dour-and-more-words-here");
-    expect(long.bits).toBeGreaterThan(short.bits);
+  it("rates ordinary 8+ char passwords as 'strong' with all three bars", () => {
+    for (const pw of ["9xKmQ2vL", "Tr7b4Dz1pR"]) {
+      const r = estimatePassword(pw);
+      expect(r.level).toBe("strong");
+      expect(r.filledBars).toBe(3);
+    }
   });
 
-  it("rewards a larger character pool at equal length", () => {
-    const lower = estimatePassword("abcdefgh");
-    const mixed = estimatePassword("aB3!efgh");
-    expect(mixed.bits).toBeGreaterThan(lower.bits);
+  it("demotes trivially guessable passwords to 'weak' regardless of length", () => {
+    for (const pw of [
+      "abcd",
+      "12345678",
+      "0000",
+      "1212121212",
+      "papapapapapa",
+      "qwerty",
+      "password123",
+    ]) {
+      expect(estimatePassword(pw).level).toBe("weak");
+    }
   });
 
-  it("always returns a score within 0..4", () => {
-    for (const pw of ["", "a", "abc123", "Aa1!Aa1!Aa1!", "x".repeat(200)]) {
-      const { score } = estimatePassword(pw);
-      expect(score).toBeGreaterThanOrEqual(0);
-      expect(score).toBeLessThanOrEqual(4);
+  it("always reports 0..3 filled bars", () => {
+    for (const pw of ["", "a", "t9kd", "9xKmQ2vL", "x".repeat(200)]) {
+      const { filledBars } = estimatePassword(pw);
+      expect(filledBars).toBeGreaterThanOrEqual(0);
+      expect(filledBars).toBeLessThanOrEqual(3);
+    }
+  });
+});
+
+describe("isWeakPassword", () => {
+  it("flags too-short passwords", () => {
+    for (const pw of ["", "a", "ab", "abc"]) {
+      expect(isWeakPassword(pw)).toBe(true);
+    }
+  });
+
+  it("flags consecutive-run and low-diversity patterns", () => {
+    for (const pw of ["abcd", "12345678", "0000", "1212121212", "papapapa"]) {
+      expect(isWeakPassword(pw)).toBe(true);
+    }
+  });
+
+  it("removes forbidden words recursively before judging the remainder", () => {
+    // "1234" is weak, so "key1234" is weak once "key" is stripped.
+    expect(isWeakPassword("key1234")).toBe(true);
+    // A strong remainder survives even though the input contains "pass".
+    expect(isWeakPassword("pass034vg$%&BV")).toBe(false);
+    // A password built entirely around a forbidden word is weak.
+    expect(isWeakPassword("qwerty")).toBe(true);
+    expect(isWeakPassword("hello123")).toBe(true);
+  });
+
+  it("accepts a diverse, non-patterned password", () => {
+    for (const pw of ["9xKmQ2vL", "Tr7b4Dz1pR", "k3Wm9"]) {
+      expect(isWeakPassword(pw)).toBe(false);
     }
   });
 });

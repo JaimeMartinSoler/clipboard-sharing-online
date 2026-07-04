@@ -62,7 +62,7 @@ app. It assumes `CLAUDE.md`, `docs/SPEC.md`, `docs/ARCHITECTURE.md`, and
 >
 > 4. **Room membership & sealing (`worker/`) — TDD.** Add `POST /api/rooms`:
 >    atomic slot allocation in a D1 transaction (create room with `capacity`
->    default 2, clamped 1–10, on first contact; grant a slot only while
+>    default 2, clamped 1–6, on first contact; grant a slot only while
 >    `members < capacity`); seal at capacity with `409`; `400` on bad `capacity`.
 >    Generate a random bearer token, store only its SHA-256 hash in `members`,
 >    return the raw token once. Gate all `/api/clipboard*` ops on a valid
