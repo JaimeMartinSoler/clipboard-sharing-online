@@ -18,20 +18,20 @@ const CAPTION: Record<StrengthLevel, ReactNode> = {
   none: "Type a password, length min 4",
   weak: (
     <>
-      Strength: <span className="font-medium">Weak</span> — type a password,
+      <span className="font-medium">Weak</span> — type a stronger password,
       length min 4
     </>
   ),
   fair: (
     <>
-      Strength: <span className="font-medium">Fair</span>, but easy to{" "}
+      <span className="font-medium">Fair</span>, but easy to{" "}
       <span className="font-medium">remember</span> for sharing
     </>
   ),
   strong: (
     <>
-      Strength: <span className="font-medium">Strong</span>, but hard to
-      remember. Share with <span className="font-medium">link</span> or{" "}
+      <span className="font-medium">Strong</span>, but hard to remember. Share
+      with <span className="font-medium">link</span> or{" "}
       <span className="font-medium">QR</span> from room
     </>
   ),

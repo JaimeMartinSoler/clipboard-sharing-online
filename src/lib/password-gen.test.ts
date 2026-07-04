@@ -13,6 +13,16 @@ describe("generateSimplePassword", () => {
     }
   });
 
+  it("never repeats a letter or a digit", () => {
+    for (let i = 0; i < 200; i++) {
+      const pw = generateSimplePassword();
+      const letters = pw.slice(0, 4).split("");
+      const digits = pw.slice(4).split("");
+      expect(new Set(letters).size).toBe(4);
+      expect(new Set(digits).size).toBe(2);
+    }
+  });
+
   it("varies between calls (not a constant)", () => {
     const seen = new Set<string>();
     for (let i = 0; i < 50; i++) seen.add(generateSimplePassword());

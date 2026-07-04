@@ -33,6 +33,21 @@ function pick(set: string): string {
   return set.charAt(randomInt(set.length));
 }
 
+/**
+ * Pick `k` *distinct* characters from a set (no character repeats), via a
+ * partial Fisher–Yates over a mutable pool. `k` must not exceed the set size.
+ */
+function pickDistinct(set: string, k: number): string {
+  const pool = set.split("");
+  let out = "";
+  for (let i = 0; i < k && pool.length > 0; i++) {
+    const j = randomInt(pool.length);
+    const [c] = pool.splice(j, 1);
+    out += c ?? "";
+  }
+  return out;
+}
+
 /** Fisher–Yates shuffle in place using crypto randomness. */
 function shuffle(chars: string[]): string[] {
   for (let i = chars.length - 1; i > 0; i--) {
@@ -46,15 +61,13 @@ function shuffle(chars: string[]): string[] {
 }
 
 /**
- * Simple password — 6 chars: four uppercase ASCII letters followed by two
- * digits (e.g. `KQWZ47`). Short and easy to read aloud or retype when the two
- * devices are side by side.
+ * Simple password — 6 chars: four *distinct* uppercase ASCII letters followed
+ * by two *distinct* digits (e.g. `KQWZ47`). No letter or digit repeats, which
+ * keeps the character diversity up. Short and easy to read aloud or retype when
+ * the two devices are side by side.
  */
 export function generateSimplePassword(): string {
-  let out = "";
-  for (let i = 0; i < 4; i++) out += pick(UPPER);
-  for (let i = 0; i < 2; i++) out += pick(DIGITS);
-  return out;
+  return pickDistinct(UPPER, 4) + pickDistinct(DIGITS, 2);
 }
 
 /**

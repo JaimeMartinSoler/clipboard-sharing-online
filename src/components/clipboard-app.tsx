@@ -531,8 +531,13 @@ export function ClipboardApp() {
           onJoin={() => void allocate("join", password)}
           statusBanner={
             <StatusBanner kind={status.kind}>
-              {status.message ||
-                "Create a room with password on one device and share it or Join it on the others"}
+              {status.message || (
+                <>
+                  <strong>Share text</strong> across <strong>any device</strong>
+                  : Just <strong>create a room</strong> with a password on one
+                  device and <strong>join</strong> from another
+                </>
+              )}
             </StatusBanner>
           }
         />
