@@ -17,6 +17,8 @@ export interface LiveRoomCallbacks {
   onOpen: () => void;
   /** Another terminal pushed; payload is ciphertext to decrypt locally. */
   onUpdate: (update: LiveUpdate) => void;
+  /** Membership changed (a terminal joined or was revoked); re-pull the roster. */
+  onRoster: () => void;
   /** This member was revoked by the creator (terminal). */
   onRevoked: () => void;
   /** The room was removed or expired (terminal). */
@@ -59,6 +61,9 @@ export function useLiveRoom(
             break;
           case "update":
             callbacksRef.current.onUpdate(event.update);
+            break;
+          case "roster":
+            callbacksRef.current.onRoster();
             break;
           case "reconnecting":
             setStatus("reconnecting");

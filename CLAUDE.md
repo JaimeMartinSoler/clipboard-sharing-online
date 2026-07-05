@@ -78,10 +78,16 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   pushes route **through** the DO: it runs the same guarded D1 write and
   broadcasts `{v:1, type:"update", ciphertext, iv, expiresAt}` in one
   serialized turn — D1 stays the single source of truth, the DO stores nothing
-  but an expiry alarm. Sockets hibernate ("ping" keepalives are auto-answered
-  via `setWebSocketAutoResponse`). Close codes are terminal for the client:
-  `4001` revoked (revoke also severs the member's sockets), `4004` room
-  gone/expired. The frontend (`src/lib/live.ts`) is downstream-only, catches
+  but an expiry alarm. Membership changes also fan out a **data-less**
+  `{v:1, type:"roster"}` nudge over the same sockets (the DO's
+  `broadcastRoster()`) — sent when a joiner lands in a live room and on revoke —
+  so a creator's **room controls refresh in near-real time**; the nudge carries
+  no member data (the roster stays creator-only behind `GET …/members`, re-pulled
+  by the client on the nudge), and manual rooms get no DO/nudge (the Refresh
+  button stays the only way to update their list). Sockets hibernate ("ping"
+  keepalives are auto-answered via `setWebSocketAutoResponse`). Close codes are
+  terminal for the client: `4001` revoked (revoke also severs the member's
+  sockets), `4004` room gone/expired. The frontend (`src/lib/live.ts`) is downstream-only, catches
   up with one HTTP pull per (re)connect, reconnects with capped backoff, and
   applies updates per a per-client conflict policy (`overwrite` default /
   `warn` keeps unsaved edits).
