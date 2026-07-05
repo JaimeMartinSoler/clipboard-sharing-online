@@ -123,8 +123,10 @@ export function ClipboardApp() {
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   // Bumped whenever a live `roster` frame arrives (a terminal joined or was
-  // revoked), so the creator's room controls re-pull the member list in near
-  // real time. Manual rooms never receive these — they keep the Refresh button.
+  // revoked) and on every socket (re)connect, so the creator's room controls
+  // re-pull the member list in near real time — a reconnect catch-up covers any
+  // nudge missed while the socket was down. Manual rooms never receive these —
+  // they keep the Refresh button.
   const [rosterSignal, setRosterSignal] = useState(0);
 
   // Mirrors for async callbacks (live updates, debounced pushes) that must see
@@ -450,6 +452,11 @@ export function ClipboardApp() {
     onOpen: () => {
       const s = sessionRef.current;
       if (!s) return;
+      // Also re-pull the roster: a membership change (join/revoke) whose
+      // `roster` nudge landed while our socket was down would otherwise leave
+      // the creator's list stale until a manual Refresh. Harmless for joiners,
+      // whose CreatorPanel isn't mounted.
+      setRosterSignal((n) => n + 1);
       void (async () => {
         const res = await pullClipboard(s.roomId, s.token);
         if (res.ok) await applyRemote(res.value);

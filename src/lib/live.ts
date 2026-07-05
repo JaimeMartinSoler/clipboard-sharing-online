@@ -122,7 +122,8 @@ export function parseLiveFrame(data: unknown): Result<LiveFrame> {
   const o = raw as Record<string, unknown>;
   if (o.v !== 1) return err("Unknown version.");
   if (o.type === "roster") return ok({ type: "roster" });
-  const update = parseLiveMessage(data);
+  // Reuse the already-parsed object rather than re-parsing the string.
+  const update = parseUpdateObject(o);
   if (!update.ok) return err(update.error);
   return ok({ type: "update", update: update.value });
 }
@@ -137,7 +138,15 @@ export function parseLiveMessage(data: unknown): Result<LiveUpdate> {
     return err("Not JSON.");
   }
   if (typeof raw !== "object" || raw === null) return err("Not an object.");
-  const o = raw as Record<string, unknown>;
+  return parseUpdateObject(raw as Record<string, unknown>);
+}
+
+/**
+ * Validate an already-parsed frame object as a content `update`. Split out so
+ * `parseLiveFrame` can dispatch on a single `JSON.parse` instead of parsing the
+ * same string twice.
+ */
+function parseUpdateObject(o: Record<string, unknown>): Result<LiveUpdate> {
   if (o.v !== 1 || o.type !== "update") return err("Not an update frame.");
   if (typeof o.ciphertext !== "string" || !BASE64URL.test(o.ciphertext)) {
     return err("Bad ciphertext.");

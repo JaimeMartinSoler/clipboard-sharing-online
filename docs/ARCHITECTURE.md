@@ -151,9 +151,10 @@ validation, and uniform error responses that don't leak room existence.
   in near-real time**: the Worker calls the DO's `broadcastRoster()` when a
   joiner lands in a live room (`POST /api/rooms`) and on revoke. The frame
   carries **no** member data — the roster (roles, join times) stays creator-only
-  behind `GET …/members`, which the client re-pulls on the nudge. Manual rooms
-  get no DO and no nudges; their room controls refresh only via the Refresh
-  button.
+  behind `GET …/members`, which the client re-pulls on the nudge **and on every
+  socket (re)connect**, so a nudge missed while the socket was down can't leave
+  the list stale. Manual rooms get no DO and no nudges; their room controls
+  refresh only via the Refresh button.
 - **Revocation & nuke.** `DELETE …/members/:id` also closes that member's
   sockets (`4001`) and nudges the survivors' rosters; `DELETE /api/rooms/:roomId`
   closes all (`4004`).
@@ -163,7 +164,8 @@ validation, and uniform error responses that don't leak room existence.
   few attempts; `4001`/`4004` are terminal. Incoming `update` frames are
   decrypted locally and applied subject to a per-client conflict policy
   (`overwrite` default, or `warn` which keeps unsaved edits and points at Pull);
-  a `roster` frame re-pulls the creator's member list.
+  a `roster` frame — and each (re)connect's catch-up — re-pulls the creator's
+  member list.
 
 ### Membership, roles & sealing
 - **Create vs join, enforced server-side.** `mode:"create"` inserts the sole

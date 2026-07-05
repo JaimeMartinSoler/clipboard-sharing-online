@@ -109,6 +109,17 @@ describe("parseLiveFrame", () => {
     });
   });
 
+  it("validates an update identically to parseLiveMessage (shared path, one parse)", () => {
+    const frame = { v: 1, type: "update", ciphertext: "Q1R4", iv: "SVY", expiresAt: 7 };
+    const data = JSON.stringify(frame);
+    const framed = parseLiveFrame(data);
+    const message = parseLiveMessage(data);
+    expect(framed.ok && message.ok).toBe(true);
+    if (framed.ok && framed.value.type === "update" && message.ok) {
+      expect(framed.value.update).toEqual(message.value);
+    }
+  });
+
   it("rejects pongs, wrong versions, and malformed update frames", () => {
     expect(parseLiveFrame("pong").ok).toBe(false);
     expect(parseLiveFrame(JSON.stringify({ v: 2, type: "roster" })).ok).toBe(false);

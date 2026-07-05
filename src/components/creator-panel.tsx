@@ -23,8 +23,10 @@ import { formatDateTime } from "@/lib/datetime";
  *   roster refreshes on mount, via the Refresh button, and — in live rooms
  *   (`push`/`typing`) — automatically whenever `refreshSignal` bumps (the
  *   `ClipboardApp` increments it on each live `roster` frame, i.e. a terminal
- *   joined or was revoked). Manual rooms never get those frames, so there the
- *   Refresh button is the only way to update the list.
+ *   joined or was revoked, and on every socket (re)connect so a nudge missed
+ *   while disconnected can't leave the list stale). Manual rooms never get
+ *   those frames, so there the Refresh button is the only way to update the
+ *   list.
  * - Nuke the whole room (blob + members). Link/password sharing lives in
  *   `ShareControls`, which every member sees.
  */
@@ -40,9 +42,10 @@ export function CreatorPanel({
   onSessionInvalid: () => void;
   onRemoveRoom: () => void;
   /**
-   * Monotonic counter bumped by the parent on each live `roster` frame; a change
-   * triggers an automatic re-pull. Defaults to `0` (never changes) for manual
-   * rooms, where only the Refresh button updates the list.
+   * Monotonic counter bumped by the parent on each live `roster` frame and on
+   * every socket (re)connect; a change triggers an automatic re-pull. Defaults
+   * to `0` (never changes) for manual rooms, where only the Refresh button
+   * updates the list.
    */
   refreshSignal?: number;
 }) {
