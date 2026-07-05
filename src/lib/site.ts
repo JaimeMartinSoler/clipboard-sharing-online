@@ -52,6 +52,19 @@ export const SITE_KEYWORDS = [
   "zero-knowledge",
 ];
 
+/**
+ * Brand logo (slash + clipboard + padlock, matching the sister site
+ * office-tools-online), reused as the default Open Graph / Twitter preview
+ * image. The full raster set lives in `public/`: `favicon-32x32.png`,
+ * `icon.png` (256), `apple-touch-icon.png` (180) and the header `logo.png`.
+ */
+export const OG_IMAGE = {
+  url: "/icon.png",
+  width: 256,
+  height: 256,
+  alt: SITE_NAME,
+} as const;
+
 /** User-facing feature bullets, reused by the manifest and structured data. */
 export const SITE_FEATURES = [
   "Share text between phone, PC, laptop and tablet",
@@ -74,6 +87,7 @@ export function webApplicationJsonLd(): Record<string, unknown> {
     name: SITE_NAME,
     url: `${SITE_URL}/`,
     description: SITE_DESCRIPTION,
+    image: `${SITE_URL}${OG_IMAGE.url}`,
     applicationCategory: "UtilitiesApplication",
     operatingSystem: "Any (modern web browser)",
     browserRequirements: "Requires JavaScript. Requires HTML5.",

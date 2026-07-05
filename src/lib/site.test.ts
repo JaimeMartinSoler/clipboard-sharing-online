@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  OG_IMAGE,
   SITE_DESCRIPTION,
   SITE_FEATURES,
   SITE_KEYWORDS,
@@ -26,6 +27,13 @@ describe("site identity", () => {
     expect(SITE_DESCRIPTION.length).toBeLessThanOrEqual(320);
   });
 
+  it("points the social preview image at a root-relative square asset", () => {
+    // Root-relative so Next resolves it against `metadataBase`.
+    expect(OG_IMAGE.url.startsWith("/")).toBe(true);
+    expect(OG_IMAGE.width).toBe(OG_IMAGE.height);
+    expect(OG_IMAGE.alt).toBe(SITE_NAME);
+  });
+
   it("targets the intended long-tail search phrases", () => {
     for (const kw of ["clipboard share", "text share"]) {
       expect(SITE_KEYWORDS).toContain(kw);
@@ -43,6 +51,8 @@ describe("webApplicationJsonLd", () => {
     expect(data["@type"]).toBe("WebApplication");
     expect(data.url).toBe(`${SITE_URL}/`);
     expect(data.name).toBe(SITE_NAME);
+    // Crawlers do not resolve relative paths in structured data.
+    expect(data.image).toBe(`${SITE_URL}${OG_IMAGE.url}`);
   });
 
   it("advertises a free, JSON-serializable offer and feature list", () => {

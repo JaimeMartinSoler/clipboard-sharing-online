@@ -41,7 +41,8 @@ terminal cap is an access-control layer *on top of* the encryption (see
 ├─ src/
 │  ├─ app/                 # App Router: page.tsx (the tool), privacy/, layout.tsx
 │  │                       #   + SEO metadata routes: robots.ts, sitemap.ts,
-│  │                       #   manifest.ts, icon.svg (all static-export emitted)
+│  │                       #   manifest.ts (all static-export emitted; the
+│  │                       #   favicon/logo PNG set lives in public/)
 │  ├─ components/          # shared UI (StatusBanner, Hint, buttons, editor…)
 │  │  └─ ui/               # shadcn-style primitives
 │  └─ lib/

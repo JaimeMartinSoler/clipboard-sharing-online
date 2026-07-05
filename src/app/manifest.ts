@@ -4,8 +4,9 @@ import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE } from "@/lib/site";
 /**
  * `/manifest.webmanifest`. Generated as a static file by `next build` under
  * `output: "export"`. Gives the app an installable identity (name, colors,
- * icon) and a richer share/appearance surface. The single SVG icon is declared
- * `any maskable` so it works both as a favicon and as an installed-app icon.
+ * icon) and a richer share/appearance surface. The icon is the brand raster
+ * from `public/` (slash + clipboard + padlock); browser-tab favicons are
+ * declared separately in the root layout's `metadata.icons`.
  */
 export const dynamic = "force-static";
 
@@ -20,9 +21,9 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#16a34a",
     icons: [
       {
-        src: "/icon.svg",
-        type: "image/svg+xml",
-        sizes: "any",
+        src: "/icon.png",
+        type: "image/png",
+        sizes: "256x256",
         purpose: "any",
       },
     ],
