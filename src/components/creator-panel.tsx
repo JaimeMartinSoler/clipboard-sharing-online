@@ -15,7 +15,7 @@ import { formatDateTime } from "@/lib/datetime";
 
 /**
  * Creator-only controls, shown below the shared editor and the (shared) Share
- * controls. Everything here is a convenience on top of the server-side creator
+ * options. Everything here is a convenience on top of the server-side creator
  * checks: a joiner who forged this UI still gets 403/401 from the Worker.
  *
  * - An on-demand table of who is in the room (role + join time), refreshed on

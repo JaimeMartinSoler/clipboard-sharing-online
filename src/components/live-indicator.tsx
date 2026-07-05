@@ -23,6 +23,11 @@ const STYLES: Record<
     label: "Reconnecting…",
     hint: "Live connection lost — retrying. Push/Pull keep working meanwhile.",
   },
+  lost: {
+    dot: "bg-red-500",
+    label: "Live connection lost",
+    hint: "The live connection was lost and gave up retrying. Push and Pull still work — reload to try reconnecting.",
+  },
 };
 
 /** Small always-visible connection dot for rooms in a live sync mode. */

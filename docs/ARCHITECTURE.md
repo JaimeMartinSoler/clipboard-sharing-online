@@ -96,11 +96,16 @@ transmitted except where noted.
 `decrypt(contentKey, {ciphertext, iv}) → Result<string>`. No React/DOM imports.
 
 ### Share links & auto-join (fragment only)
-The **Share controls** (a `ShareControls` section shown below the editor to
+The **Share options** (a `ShareControls` section shown below the editor to
 **every** member — creator and joiners alike, so anyone can invite another
 device or re-copy the password) offer **Copy password** (to clipboard, without
 revealing it), **Show password** (reveal inline), **Share link**, and **Show
-QR**. The **Share link** button and **QR** encode `https://<origin>/#p=<base64url(password)>`.
+QR**, each rendered with the icon pinned left and the label centered. A short
+warning under the heading reminds that anyone with the password or link can
+join. The **Share link** button opens the native share sheet
+(`navigator.share` → WhatsApp, Messages, Copy, …) on mobile and falls back to
+copying the link on desktop; both it and the **QR** encode
+`https://<origin>/#p=<base64url(password)>`.
 The password rides in the URL **fragment** (`#…`), the one part of a URL a
 browser never puts on the wire — it is not in the HTTP request line and not
 beaconed by Cloudflare Web Analytics. `base64url` is transport encoding only
