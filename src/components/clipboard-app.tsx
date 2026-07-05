@@ -136,6 +136,14 @@ export function ClipboardApp() {
   /** The text as last agreed with the server (pushed, pulled, or applied). */
   const lastSyncedRef = useRef("");
 
+  // The room view pushes one history entry so Back (and the header click, which
+  // routes through it) returns to the entry view instead of leaving the site.
+  // `roomHistoryPushed` tracks that entry; `suppressPopHome` marks a pop we make
+  // ourselves (a non-Back exit) so the resulting popstate doesn't re-run goHome
+  // and clobber the exit's status message.
+  const roomHistoryPushed = useRef(false);
+  const suppressPopHome = useRef(false);
+
   // Tick once a second only while there is a live countdown.
   useEffect(() => {
     if (expiresAt === null) return;
@@ -153,10 +161,26 @@ export function ClipboardApp() {
 
   const remaining = expiresAt === null ? null : expiresAt - now;
 
+  /**
+   * Pop the room's pushed history entry, if any, without letting the resulting
+   * popstate re-run goHome. Called on every programmatic exit (Leave, revoke,
+   * room gone, slot lost, remove) via dropSession so the history stack stays
+   * balanced however the room is left — a real Back press pops the entry in the
+   * browser and clears the flag in the popstate handler instead.
+   */
+  const popRoomHistory = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (!roomHistoryPushed.current) return;
+    roomHistoryPushed.current = false;
+    suppressPopHome.current = true;
+    window.history.back();
+  }, []);
+
   const dropSession = useCallback(() => {
+    popRoomHistory();
     setSession(null);
     setExpiresAt(null);
-  }, []);
+  }, [popRoomHistory]);
 
   /** Replace the text box and reset its undo/redo history (join/leave/nuke). */
   const resetText = useCallback((value: string) => {
@@ -546,8 +570,8 @@ export function ClipboardApp() {
 
   // Give the room view its own history entry so the browser Back button (and
   // the header click, which routes through it) returns to the entry view
-  // instead of navigating away from the site. Pushed once per room entry.
-  const roomHistoryPushed = useRef(false);
+  // instead of navigating away from the site. Pushed once per room entry;
+  // dropSession/popRoomHistory pops it back off on any non-Back exit.
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (session && !roomHistoryPushed.current) {
@@ -562,7 +586,18 @@ export function ClipboardApp() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onPopState = () => {
-      if (sessionRef.current) goHome();
+      // A pop we triggered ourselves (a non-Back exit) — the entry is already
+      // gone; don't re-run goHome over the exit's status message.
+      if (suppressPopHome.current) {
+        suppressPopHome.current = false;
+        return;
+      }
+      // A real Back press while in a room: the browser has popped our entry, so
+      // clear the flag and return to the entry view.
+      if (sessionRef.current) {
+        roomHistoryPushed.current = false;
+        goHome();
+      }
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);

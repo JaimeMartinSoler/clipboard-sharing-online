@@ -20,7 +20,6 @@ import type { LiveStatus } from "@/components/use-live-room";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import type { SyncMode } from "@/lib/api";
-import { cn } from "@/lib/utils";
 
 export const TTL_OPTIONS = [
   { label: "1 minute", ms: 60_000 },
@@ -123,9 +122,6 @@ export function RoomEditor({
 }) {
   const busyAny = busy !== null;
   const isLive = syncMode !== "manual";
-  // How many trailing selectors ("On update" and/or "Expiry") render, so the
-  // portrait grid can split the row between them.
-  const controlCount = (isLive ? 1 : 0) + (canSetExpiry ? 1 : 0);
   const pushCopy = PUSH_LABELS[syncMode];
   const mode = SYNC_MODE_INFO[syncMode];
 
@@ -236,23 +232,26 @@ export function RoomEditor({
         </div>
 
         <div
-          className={cn(
-            // Portrait: On update / Expiry share the full width — two equal
-            // columns when both show, one full-width column otherwise.
-            "grid w-full gap-2 sm:ml-auto sm:flex sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:gap-3",
-            controlCount === 2 ? "grid-cols-2" : "grid-cols-1",
-          )}
+          className={
+            // Portrait: On update / Expiry each get their own full-width row,
+            // the select stretching to fill it. Landscape: they sit inline on
+            // the right at their natural size.
+            "flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:gap-3"
+          }
         >
           {isLive && (
             <label className="flex w-full items-center gap-1 text-xs text-muted-foreground sm:w-auto">
               On update
-              <Hint text="What happens when another terminal pushes while you have unsaved edits: replace your text anyway, or keep it and warn you (Pull loads it).">
+              <Hint
+                className="flex-1 sm:flex-none"
+                text="What happens when another terminal pushes while you have unsaved edits: replace your text anyway, or keep it and warn you (Pull loads it)."
+              >
                 <Select
                   value={conflictPolicy}
                   onChange={(e) =>
                     onConflictPolicyChange(e.target.value as ConflictPolicy)
                   }
-                  containerClassName="flex-1 sm:flex-none"
+                  containerClassName="w-full sm:w-auto"
                   className="w-full"
                   aria-label="On update"
                 >
@@ -265,11 +264,14 @@ export function RoomEditor({
           {canSetExpiry && (
             <label className="flex w-full items-center gap-1 text-xs text-muted-foreground sm:w-auto">
               Expiry
-              <Hint text="How long a pushed blob lives on the server. Shorter is safer.">
+              <Hint
+                className="flex-1 sm:flex-none"
+                text="How long a pushed blob lives on the server. Shorter is safer."
+              >
                 <Select
                   value={ttlMs}
                   onChange={(e) => onTtlChange(Number(e.target.value))}
-                  containerClassName="flex-1 sm:flex-none"
+                  containerClassName="w-full sm:w-auto"
                   className="w-full"
                   aria-label="Expiry"
                 >
