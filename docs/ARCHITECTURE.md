@@ -42,7 +42,10 @@ terminal cap is an access-control layer *on top of* the encryption (see
 │  ├─ app/                 # App Router: page.tsx (the tool), privacy/, layout.tsx
 │  │                       #   + SEO metadata routes: robots.ts, sitemap.ts,
 │  │                       #   manifest.ts (all static-export emitted; the
-│  │                       #   favicon/logo PNG set lives in public/)
+│  │                       #   favicon/logo PNG set lives in public/; only the
+│  │                       #   main build is indexable — staging/local builds
+│  │                       #   emit a disallow-all robots.txt + noindex meta,
+│  │                       #   keyed off GITHUB_REF_NAME at build time)
 │  ├─ components/          # shared UI (StatusBanner, Hint, buttons, editor…)
 │  │  └─ ui/               # shadcn-style primitives
 │  └─ lib/

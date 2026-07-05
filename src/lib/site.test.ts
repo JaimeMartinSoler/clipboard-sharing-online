@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isIndexableDeploy,
   OG_IMAGE,
   SITE_DESCRIPTION,
   SITE_FEATURES,
@@ -18,8 +19,8 @@ describe("site identity", () => {
 
   it("leads the homepage title with the brand and stays snippet-length", () => {
     expect(SITE_TITLE.startsWith(SITE_NAME)).toBe(true);
-    // Google truncates titles well past this; keep it comfortably short.
-    expect(SITE_TITLE.length).toBeLessThanOrEqual(65);
+    // Google truncates titles around ~60 chars; keep the whole title visible.
+    expect(SITE_TITLE.length).toBeLessThanOrEqual(60);
   });
 
   it("keeps the meta description within a healthy snippet length", () => {
@@ -40,6 +41,19 @@ describe("site identity", () => {
     }
     // No duplicate keywords.
     expect(new Set(SITE_KEYWORDS).size).toBe(SITE_KEYWORDS.length);
+  });
+});
+
+describe("isIndexableDeploy", () => {
+  it("indexes only the production (main) build", () => {
+    expect(isIndexableDeploy("main")).toBe(true);
+  });
+
+  it("keeps staging, feature, and local builds out of search engines", () => {
+    expect(isIndexableDeploy("develop")).toBe(false);
+    expect(isIndexableDeploy("feature/some-branch")).toBe(false);
+    // Local builds have no GITHUB_REF_NAME at all.
+    expect(isIndexableDeploy(undefined)).toBe(false);
   });
 });
 

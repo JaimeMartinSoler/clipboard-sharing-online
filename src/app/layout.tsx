@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   OG_IMAGE,
   SITE_DESCRIPTION,
+  SITE_INDEXABLE,
   SITE_KEYWORDS,
   SITE_NAME,
   SITE_TITLE,
@@ -27,16 +28,23 @@ export const metadata: Metadata = {
   authors: [{ name: SITE_NAME }],
   category: "technology",
   alternates: { canonical: "/" },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      "max-image-preview": "large",
-      "max-snippet": -1,
-    },
-  },
+  // Staging/local builds get `noindex` (plus a disallow-all robots.txt) so
+  // only the canonical production origin ever appears in search results.
+  robots: SITE_INDEXABLE
+    ? {
+        index: true,
+        follow: true,
+        googleBot: {
+          index: true,
+          follow: true,
+          "max-image-preview": "large",
+          "max-snippet": -1,
+        },
+      }
+    : {
+        index: false,
+        follow: false,
+      },
   openGraph: {
     type: "website",
     siteName: SITE_NAME,

@@ -10,14 +10,31 @@ export const SITE_URL = "https://clipboard-sharing-online.com";
 export const SITE_NAME = "Clipboard Sharing Online";
 
 /** Short, human tagline used as the homepage title suffix. */
-export const SITE_TAGLINE = "Share Text Between Devices, Encrypted";
+export const SITE_TAGLINE = "Text Between Devices, Encrypted";
 
 /**
- * The homepage `<title>`. Kept under ~60 chars so Google doesn't truncate it,
- * while leading with the two highest-intent phrases ("clipboard", "share text
- * between devices").
+ * The homepage `<title>`. Kept under 60 chars so Google doesn't truncate it
+ * (the test enforces the bound), while leading with the two highest-intent
+ * phrases ("clipboard", "text between devices").
  */
 export const SITE_TITLE = `${SITE_NAME} — ${SITE_TAGLINE}`;
+
+/**
+ * Whether the build being produced is the production deploy that search
+ * engines should index. The Pages deploy workflow builds every target with
+ * the same `pnpm build`; GitHub Actions' default `GITHUB_REF_NAME` env var
+ * names the branch being built, and only `main` goes to the production
+ * origin. Every other build — the `develop` staging slot, ad-hoc
+ * `workflow_dispatch` builds, local builds — serves the same content on a
+ * non-canonical host and must not be indexed, so it ships a `disallow`-all
+ * robots.txt and a `noindex` robots meta instead.
+ */
+export function isIndexableDeploy(refName: string | undefined): boolean {
+  return refName === "main";
+}
+
+/** Resolved at build time (static export): true only for the `main` deploy. */
+export const SITE_INDEXABLE = isIndexableDeploy(process.env.GITHUB_REF_NAME);
 
 /**
  * The meta description / OpenGraph description. Written for a search snippet:
