@@ -20,6 +20,7 @@ import type { LiveStatus } from "@/components/use-live-room";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import type { SyncMode } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 export const TTL_OPTIONS = [
   { label: "1 minute", ms: 60_000 },
@@ -122,6 +123,9 @@ export function RoomEditor({
 }) {
   const busyAny = busy !== null;
   const isLive = syncMode !== "manual";
+  // How many trailing selectors ("On update" and/or "Expiry") render, so the
+  // portrait grid can split the row between them.
+  const controlCount = (isLive ? 1 : 0) + (canSetExpiry ? 1 : 0);
   const pushCopy = PUSH_LABELS[syncMode];
   const mode = SYNC_MODE_INFO[syncMode];
 
@@ -142,12 +146,13 @@ export function RoomEditor({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           <h2 className="text-sm font-medium text-muted-foreground">Text</h2>
-          {isLive && <LiveIndicator status={liveStatus} />}
           <Hint text={mode.hint}>
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
               <mode.Icon className="size-3" aria-hidden /> {mode.label}
             </span>
           </Hint>
+          {/* Live dot sits to the right of the broadcast/sync-mode text. */}
+          {isLive && <LiveIndicator status={liveStatus} />}
         </div>
         <div className="grid w-full grid-cols-4 gap-2 sm:inline-grid sm:w-auto">
           <Hint text="Undo the last change to the text box.">
@@ -230,7 +235,14 @@ export function RoomEditor({
           />
         </div>
 
-        <div className="flex flex-col gap-2 sm:ml-auto sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+        <div
+          className={cn(
+            // Portrait: On update / Expiry share the full width — two equal
+            // columns when both show, one full-width column otherwise.
+            "grid w-full gap-2 sm:ml-auto sm:flex sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:gap-3",
+            controlCount === 2 ? "grid-cols-2" : "grid-cols-1",
+          )}
+        >
           {isLive && (
             <label className="flex w-full items-center gap-1 text-xs text-muted-foreground sm:w-auto">
               On update

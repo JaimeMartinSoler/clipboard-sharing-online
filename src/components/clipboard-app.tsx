@@ -532,6 +532,53 @@ export function ClipboardApp() {
     });
   }, [dropSession, resetText]);
 
+  /**
+   * Return to the entry ("main") view, dropping the in-memory session. Used by
+   * the header title/lock click and the browser Back button (see the history
+   * effects below) so both land on the main page instead of leaving the site.
+   */
+  const goHome = useCallback(() => {
+    debouncerRef.current?.cancel();
+    dropSession();
+    resetText("");
+    setStatus({ kind: "info", message: "" });
+  }, [dropSession, resetText]);
+
+  // Give the room view its own history entry so the browser Back button (and
+  // the header click, which routes through it) returns to the entry view
+  // instead of navigating away from the site. Pushed once per room entry.
+  const roomHistoryPushed = useRef(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (session && !roomHistoryPushed.current) {
+      roomHistoryPushed.current = true;
+      window.history.pushState({ csoRoom: true }, "");
+    } else if (!session) {
+      roomHistoryPushed.current = false;
+    }
+  }, [session]);
+
+  // Back button: pop returns us to the entry view rather than off-site.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onPopState = () => {
+      if (sessionRef.current) goHome();
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [goHome]);
+
+  // Header title/lock click dispatches this; if we're in a room, step Back so
+  // the pushed room entry is popped and popstate drives us home cleanly.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onHome = () => {
+      if (sessionRef.current) window.history.back();
+    };
+    window.addEventListener("cso:home", onHome);
+    return () => window.removeEventListener("cso:home", onHome);
+  }, []);
+
   const handleRemoveRoom = useCallback(async () => {
     if (!session) return;
     const res = await deleteRoom(session.roomId, session.token);

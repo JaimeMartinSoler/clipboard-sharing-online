@@ -5,7 +5,12 @@ import type { Session } from "@/components/room-types";
 import { connectLive, type LiveUpdate } from "@/lib/live";
 
 /** Connection state surfaced by the LiveIndicator. */
-export type LiveStatus = "off" | "connecting" | "connected" | "reconnecting";
+export type LiveStatus =
+  | "off"
+  | "connecting"
+  | "connected"
+  | "reconnecting"
+  | "lost";
 
 export interface LiveRoomCallbacks {
   /** Fired on every (re)connect — do a catch-up pull here. */
@@ -59,11 +64,18 @@ export function useLiveRoom(
             setStatus("reconnecting");
             break;
           case "closed":
-            setStatus("off");
-            if (event.reason === "revoked") callbacksRef.current.onRevoked();
-            else if (event.reason === "room-gone") {
+            if (event.reason === "revoked") {
+              setStatus("off");
+              callbacksRef.current.onRevoked();
+            } else if (event.reason === "room-gone") {
+              setStatus("off");
               callbacksRef.current.onRoomGone();
-            } else callbacksRef.current.onFailed();
+            } else {
+              // Gave up reconnecting: keep the (red) indicator visible so the
+              // user knows live sync is down while Push/Pull keep working.
+              setStatus("lost");
+              callbacksRef.current.onFailed();
+            }
             break;
         }
       },

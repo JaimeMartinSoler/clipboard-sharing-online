@@ -1,8 +1,7 @@
 "use client";
 
-import { Eye, EyeOff, QrCode } from "lucide-react";
-import { useMemo, useState } from "react";
-import { CopyButton } from "@/components/copy-button";
+import { Check, Copy, Eye, EyeOff, QrCode, Share2 } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import { Hint } from "@/components/hint";
 import { Button } from "@/components/ui/button";
 import { qrSvg } from "@/lib/qr";
@@ -19,12 +18,15 @@ import { buildShareUrl } from "@/lib/room-link";
  *   showing it on screen.
  * - **Show password** — reveals the password inline (like the QR reveal) for
  *   reading it aloud or retyping.
- * - **Share link** — copies the auto-join link.
+ * - **Share link** — opens the native share sheet on mobile (WhatsApp, copy,
+ *   …), falling back to copying the auto-join link on desktop.
  * - **Show QR** — renders a scannable QR of the same link for phones.
  */
 export function ShareControls({ password }: { password: string }) {
   const [showQr, setShowQr] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [passwordCopied, setPasswordCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const shareUrl = useMemo(() => {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -37,57 +39,82 @@ export function ShareControls({ password }: { password: string }) {
     [showQr, shareUrl],
   );
 
+  const copy = useCallback(
+    async (value: string, flash: (v: boolean) => void) => {
+      if (!value) return;
+      try {
+        await navigator.clipboard.writeText(value);
+        flash(true);
+        setTimeout(() => flash(false), 1500);
+      } catch {
+        // Clipboard API unavailable (e.g. insecure context) — fail quietly.
+      }
+    },
+    [],
+  );
+
+  // Mobile-first: hand the link to the OS share sheet (WhatsApp, Messages,
+  // "Copy", …). On desktop, where there's no share sheet, fall back to copy.
+  const handleShareLink = useCallback(async () => {
+    if (!shareUrl) return;
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share({
+          title: "Clipboard Sharing Online",
+          text: "Join my clipboard room:",
+          url: shareUrl,
+        });
+      } catch {
+        // User dismissed the share sheet (or it failed) — nothing to do.
+      }
+      return;
+    }
+    await copy(shareUrl, setLinkCopied);
+  }, [shareUrl, copy]);
+
   return (
     <section className="flex flex-col gap-3 rounded-lg border bg-card p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-sm font-medium">Share controls</h2>
+        <h2 className="text-sm font-medium">Share options</h2>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Invite another device to this room. <strong>Anyone with the password
+        or link can join</strong> — only share it with people you trust.
+      </p>
 
-      {/* Equal-width buttons: portrait splits the row into four equal columns;
-          wider screens size all four to the widest so they never jump when a
-          label changes (e.g. "Copy" → "Copied"). */}
+      {/* Buttons: icon pinned to the left, label centered in the remaining
+          space. Portrait splits the row into two equal columns; wider screens
+          size all four to the widest so they never jump when a label changes
+          (e.g. "Copy password" → "Copied"). */}
       <div className="grid w-full grid-cols-2 gap-2 sm:inline-grid sm:grid-cols-4 sm:w-auto">
-        <Hint text="Copy the room password to your clipboard without revealing it on screen.">
-          <CopyButton
-            value={password}
-            label="Copy password"
-            disabled={!password}
-            variant="outline"
-            className="w-full"
-          />
-        </Hint>
-        <Hint text="Reveal the room password here so you can read it aloud or retype it on another device.">
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-full"
-            onClick={() => setShowPassword((v) => !v)}
-            disabled={!password}
-          >
-            {showPassword ? <EyeOff /> : <Eye />}
-            {showPassword ? "Hide password" : "Show password"}
-          </Button>
-        </Hint>
-        <Hint text="Copy the auto-join link. The password rides in the URL fragment (after #), which browsers never send to the server.">
-          <CopyButton
-            value={shareUrl}
-            label="Share link"
-            disabled={!shareUrl}
-            variant="outline"
-            className="w-full"
-          />
-        </Hint>
-        <Hint text="Show a QR of the same link so a phone can join by scanning it.">
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-full"
-            onClick={() => setShowQr((v) => !v)}
-            disabled={!shareUrl}
-          >
-            <QrCode /> {showQr ? "Hide QR" : "Show QR"}
-          </Button>
-        </Hint>
+        <ShareButton
+          hint="Copy the room password to your clipboard without revealing it on screen."
+          icon={passwordCopied ? <Check /> : <Copy />}
+          label={passwordCopied ? "Copied" : "Copy password"}
+          onClick={() => void copy(password, setPasswordCopied)}
+          disabled={!password}
+        />
+        <ShareButton
+          hint="Reveal the room password here so you can read it aloud or retype it on another device."
+          icon={showPassword ? <EyeOff /> : <Eye />}
+          label={showPassword ? "Hide password" : "Show password"}
+          onClick={() => setShowPassword((v) => !v)}
+          disabled={!password}
+        />
+        <ShareButton
+          hint="Share the auto-join link — the phone share sheet on mobile, or copy on desktop. The password rides in the URL fragment (after #), which browsers never send to the server."
+          icon={linkCopied ? <Check /> : <Share2 />}
+          label={linkCopied ? "Copied" : "Share link"}
+          onClick={() => void handleShareLink()}
+          disabled={!shareUrl}
+        />
+        <ShareButton
+          hint="Show a QR of the same link so a phone can join by scanning it."
+          icon={<QrCode />}
+          label={showQr ? "Hide QR" : "Show QR"}
+          onClick={() => setShowQr((v) => !v)}
+          disabled={!shareUrl}
+        />
       </div>
 
       {showPassword && password && (
@@ -115,5 +142,39 @@ export function ShareControls({ password }: { password: string }) {
           </p>
         ))}
     </section>
+  );
+}
+
+/**
+ * A Share-options button: the icon is pinned to the left and the label is
+ * centered in the remaining width (`justify-start` + a flex-1 centered label),
+ * so the four buttons read as a tidy column of centered labels.
+ */
+function ShareButton({
+  hint,
+  icon,
+  label,
+  onClick,
+  disabled,
+}: {
+  hint: string;
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Hint text={hint}>
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-full justify-start gap-2"
+        onClick={onClick}
+        disabled={disabled}
+      >
+        {icon}
+        <span className="flex-1 text-center">{label}</span>
+      </Button>
+    </Hint>
   );
 }

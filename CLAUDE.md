@@ -119,15 +119,22 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   explicitly. Document a CORS allowlist fallback if hosted on `*.workers.dev`.
   Local dev: Next's rewrite proxy can't carry WS upgrades, so `live.ts`
   connects straight to `ws://127.0.0.1:8787` on localhost.
-- **Share links / auto-join.** The **Share controls** (`ShareControls`, shown
+- **Share links / auto-join.** The **Share options** (`ShareControls`, shown
   below the editor to **every** member — creator and joiners — so anyone can
   invite another device) hold Copy password / Show password / Share link / Show
-  QR. The Share link + QR encode `https://<origin>/#p=<base64url(password)>`. The
+  QR (icon-left, centered label), plus a short "anyone with the password or link
+  can join" warning. The Share link button uses the native share sheet
+  (`navigator.share`, the `share-2` icon) on mobile and falls back to copy on
+  desktop; it and the QR encode `https://<origin>/#p=<base64url(password)>`. The
   password rides in the URL **fragment only** — never the path/query, which would
   leak it to the edge, analytics, and logs. The app auto-joins on load then
   scrubs the fragment. The QR uses a vendored, dependency-free encoder
   (`src/lib/qr.ts`) as inline SVG. Room administration (roster + Remove room)
-  stays creator-only in the `CreatorPanel`, rendered below the Share controls.
+  stays creator-only in the `CreatorPanel`, rendered below the Share options.
+  Clicking the header title/lock (or the browser Back button) returns to the
+  entry view: entering a room pushes a history entry (`ClipboardApp`) so Back
+  pops home instead of leaving the site, and the header dispatches a `cso:home`
+  event the app routes through that same Back.
 - **D1 schema.** `rooms`: `room_id` (PK, opaque), `capacity`, `sealed`,
   `sync_mode` (`'manual'|'push'|'typing'`, default `'manual'`),
   `ciphertext`/`iv` (nullable until first push), `created_at`, `expires_at`.
