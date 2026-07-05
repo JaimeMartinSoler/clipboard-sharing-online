@@ -78,10 +78,16 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   pushes route **through** the DO: it runs the same guarded D1 write and
   broadcasts `{v:1, type:"update", ciphertext, iv, expiresAt}` in one
   serialized turn — D1 stays the single source of truth, the DO stores nothing
-  but an expiry alarm. Sockets hibernate ("ping" keepalives are auto-answered
-  via `setWebSocketAutoResponse`). Close codes are terminal for the client:
-  `4001` revoked (revoke also severs the member's sockets), `4004` room
-  gone/expired. The frontend (`src/lib/live.ts`) is downstream-only, catches
+  but an expiry alarm. Membership changes also fan out a **data-less**
+  `{v:1, type:"roster"}` nudge over the same sockets (the DO's
+  `broadcastRoster()`) — sent when a joiner lands in a live room and on revoke —
+  so a creator's **room controls refresh in near-real time**; the nudge carries
+  no member data (the roster stays creator-only behind `GET …/members`, re-pulled
+  by the client on the nudge), and manual rooms get no DO/nudge (the Refresh
+  button stays the only way to update their list). Sockets hibernate ("ping"
+  keepalives are auto-answered via `setWebSocketAutoResponse`). Close codes are
+  terminal for the client: `4001` revoked (revoke also severs the member's
+  sockets), `4004` room gone/expired. The frontend (`src/lib/live.ts`) is downstream-only, catches
   up with one HTTP pull per (re)connect, reconnects with capped backoff, and
   applies updates per a per-client conflict policy (`overwrite` default /
   `warn` keeps unsaved edits).
@@ -119,15 +125,22 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   explicitly. Document a CORS allowlist fallback if hosted on `*.workers.dev`.
   Local dev: Next's rewrite proxy can't carry WS upgrades, so `live.ts`
   connects straight to `ws://127.0.0.1:8787` on localhost.
-- **Share links / auto-join.** The **Share controls** (`ShareControls`, shown
+- **Share links / auto-join.** The **Share options** (`ShareControls`, shown
   below the editor to **every** member — creator and joiners — so anyone can
   invite another device) hold Copy password / Show password / Share link / Show
-  QR. The Share link + QR encode `https://<origin>/#p=<base64url(password)>`. The
+  QR (icon-left, centered label), plus a short "anyone with the password or link
+  can join" warning. The Share link button uses the native share sheet
+  (`navigator.share`, the `share-2` icon) on mobile and falls back to copy on
+  desktop; it and the QR encode `https://<origin>/#p=<base64url(password)>`. The
   password rides in the URL **fragment only** — never the path/query, which would
   leak it to the edge, analytics, and logs. The app auto-joins on load then
   scrubs the fragment. The QR uses a vendored, dependency-free encoder
   (`src/lib/qr.ts`) as inline SVG. Room administration (roster + Remove room)
-  stays creator-only in the `CreatorPanel`, rendered below the Share controls.
+  stays creator-only in the `CreatorPanel`, rendered below the Share options.
+  Clicking the header title/logo (or the browser Back button) returns to the
+  entry view: entering a room pushes a history entry (`ClipboardApp`) so Back
+  pops home instead of leaving the site, and the header dispatches a `cso:home`
+  event the app routes through that same Back.
 - **D1 schema.** `rooms`: `room_id` (PK, opaque), `capacity`, `sealed`,
   `sync_mode` (`'manual'|'push'|'typing'`, default `'manual'`),
   `ciphertext`/`iv` (nullable until first push), `created_at`, `expires_at`.
@@ -153,9 +166,10 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   aesthetic, the single always-on `StatusBanner`
   (`error > warning > info > validated`), on-hover `Hint` tooltips, a visible
   lock-icon "End-to-end encrypted — your password never leaves this browser"
-  badge, and a `/privacy` page. As a single-tool app, drop the multi-tool
-  sidebar/registry
-  scaffolding.
+  badge, a header "100% encrypted" pill badge + About pill (same responsive
+  format as `office-tools-online`: icon-only on phones, text from `md:` up),
+  a `/privacy` page, and an `/about` page. As a single-tool app, drop the
+  multi-tool sidebar/registry scaffolding.
 - **Entry view** puts the Create/Join buttons on top and tucks the room options
   (Sealed/Open toggle, Terminals, Sharing mode) under a collapsed-by-default
   **Advanced Settings** panel — simple by default, configurable on demand.

@@ -5,13 +5,20 @@ import type { Session } from "@/components/room-types";
 import { connectLive, type LiveUpdate } from "@/lib/live";
 
 /** Connection state surfaced by the LiveIndicator. */
-export type LiveStatus = "off" | "connecting" | "connected" | "reconnecting";
+export type LiveStatus =
+  | "off"
+  | "connecting"
+  | "connected"
+  | "reconnecting"
+  | "lost";
 
 export interface LiveRoomCallbacks {
   /** Fired on every (re)connect — do a catch-up pull here. */
   onOpen: () => void;
   /** Another terminal pushed; payload is ciphertext to decrypt locally. */
   onUpdate: (update: LiveUpdate) => void;
+  /** Membership changed (a terminal joined or was revoked); re-pull the roster. */
+  onRoster: () => void;
   /** This member was revoked by the creator (terminal). */
   onRevoked: () => void;
   /** The room was removed or expired (terminal). */
@@ -55,15 +62,25 @@ export function useLiveRoom(
           case "update":
             callbacksRef.current.onUpdate(event.update);
             break;
+          case "roster":
+            callbacksRef.current.onRoster();
+            break;
           case "reconnecting":
             setStatus("reconnecting");
             break;
           case "closed":
-            setStatus("off");
-            if (event.reason === "revoked") callbacksRef.current.onRevoked();
-            else if (event.reason === "room-gone") {
+            if (event.reason === "revoked") {
+              setStatus("off");
+              callbacksRef.current.onRevoked();
+            } else if (event.reason === "room-gone") {
+              setStatus("off");
               callbacksRef.current.onRoomGone();
-            } else callbacksRef.current.onFailed();
+            } else {
+              // Gave up reconnecting: keep the (red) indicator visible so the
+              // user knows live sync is down while Push/Pull keep working.
+              setStatus("lost");
+              callbacksRef.current.onFailed();
+            }
             break;
         }
       },

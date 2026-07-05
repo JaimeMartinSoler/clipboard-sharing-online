@@ -5,6 +5,7 @@ import {
   bearer,
   call,
   connectWs,
+  memberId,
   nextClose,
   nextMessage,
   noMessageWithin,
@@ -150,6 +151,71 @@ describe("push fanout through the room DO", () => {
     // Ids persist across tests in this miniflare instance, so assert that no
     // DO was ever created FOR THIS room rather than that none exist at all.
     const manualId = env.ROOM.idFromName("manual-room");
+    const ids = await listDurableObjectIds(env.ROOM);
+    expect(ids.some((id) => id.equals(manualId))).toBe(false);
+  });
+});
+
+describe("roster fanout on membership change", () => {
+  it("nudges a live room's sockets when a new joiner lands", async () => {
+    const created = await call("/api/rooms", {
+      method: "POST",
+      headers: { "content-type": "application/json", "CF-Connecting-IP": "8.7.0.1" },
+      body: JSON.stringify({
+        roomId: "roster-join",
+        mode: "create",
+        syncMode: "push",
+        capacity: 3,
+      }),
+    });
+    expect(created.status).toBe(200);
+    const creatorToken = ((await created.json()) as { token: string }).token;
+
+    const c = await connectWs("roster-join", creatorToken, "8.7.0.1");
+    if (!c.ws) throw new Error("socket missing");
+
+    // Listen BEFORE the join so the broadcast can't slip past.
+    const rosterFrame = nextMessage(c.ws);
+    const joined = await call("/api/rooms", {
+      method: "POST",
+      headers: { "content-type": "application/json", "CF-Connecting-IP": "8.7.0.2" },
+      body: JSON.stringify({ roomId: "roster-join", mode: "join" }),
+    });
+    expect(joined.status).toBe(200);
+
+    expect(JSON.parse(await rosterFrame)).toEqual({ v: 1, type: "roster" });
+  });
+
+  it("nudges the survivors when a joiner is revoked", async () => {
+    await seedRoom("roster-rev", { syncMode: "push", capacity: 3 });
+    const creator = await seedMember("roster-rev", "tok-creator", "creator");
+    const joiner = await seedMember("roster-rev", "tok-joiner");
+
+    const c = await connectWs("roster-rev", creator, "8.7.1.1");
+    const j = await connectWs("roster-rev", joiner, "8.7.1.2");
+    if (!c.ws || !j.ws) throw new Error("sockets missing");
+
+    const rosterFrame = nextMessage(c.ws);
+    const id = await memberId("roster-rev", joiner);
+    const res = await call(`/api/rooms/roster-rev/members/${id}`, {
+      method: "DELETE",
+      headers: bearer(creator, "8.7.1.1"),
+    });
+    expect(res.status).toBe(200);
+
+    expect(JSON.parse(await rosterFrame)).toEqual({ v: 1, type: "roster" });
+  });
+
+  it("never instantiates a DO when joining a manual room", async () => {
+    await seedRoom("roster-manual", { syncMode: "manual", capacity: 3 });
+    const res = await call("/api/rooms", {
+      method: "POST",
+      headers: { "content-type": "application/json", "CF-Connecting-IP": "8.7.2.1" },
+      body: JSON.stringify({ roomId: "roster-manual", mode: "join" }),
+    });
+    expect(res.status).toBe(200);
+
+    const manualId = env.ROOM.idFromName("roster-manual");
     const ids = await listDurableObjectIds(env.ROOM);
     expect(ids.some((id) => id.equals(manualId))).toBe(false);
   });

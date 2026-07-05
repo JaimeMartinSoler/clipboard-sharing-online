@@ -39,7 +39,7 @@ terminal cap is an access-control layer *on top of* the encryption (see
 ```
 .                          # package "web": Next.js 15 static-export frontend
 ├─ src/
-│  ├─ app/                 # App Router: page.tsx (the tool), privacy/, layout.tsx
+│  ├─ app/                 # App Router: page.tsx (the tool), privacy/, about/, layout.tsx
 │  ├─ components/          # shared UI (StatusBanner, Hint, buttons, editor…)
 │  │  └─ ui/               # shadcn-style primitives
 │  └─ lib/
@@ -96,11 +96,16 @@ transmitted except where noted.
 `decrypt(contentKey, {ciphertext, iv}) → Result<string>`. No React/DOM imports.
 
 ### Share links & auto-join (fragment only)
-The **Share controls** (a `ShareControls` section shown below the editor to
+The **Share options** (a `ShareControls` section shown below the editor to
 **every** member — creator and joiners alike, so anyone can invite another
 device or re-copy the password) offer **Copy password** (to clipboard, without
 revealing it), **Show password** (reveal inline), **Share link**, and **Show
-QR**. The **Share link** button and **QR** encode `https://<origin>/#p=<base64url(password)>`.
+QR**, each rendered with the icon pinned left and the label centered. A short
+warning under the heading reminds that anyone with the password or link can
+join. The **Share link** button opens the native share sheet
+(`navigator.share` → WhatsApp, Messages, Copy, …) on mobile and falls back to
+copying the link on desktop; both it and the **QR** encode
+`https://<origin>/#p=<base64url(password)>`.
 The password rides in the URL **fragment** (`#…`), the one part of a URL a
 browser never puts on the wire — it is not in the HTTP request line and not
 beaconed by Cloudflare Web Analytics. `base64url` is transport encoding only
@@ -143,16 +148,29 @@ validation, and uniform error responses that don't leak room existence.
   while its sockets stay connected, so it accrues no duration billing.
 - **Write path.** For live rooms the Worker validates everything (auth, shape,
   size, TTL clamp) then calls the DO, which runs the same D1 `UPDATE … WHERE
-  expires_at > now` guard and broadcasts in one serialized turn — every member
-  observes pushes in commit order, and an expired room can't be resurrected.
+  expires_at > now` guard and broadcasts `{v:1, type:"update", …}` in one
+  serialized turn — every member observes pushes in commit order, and an expired
+  room can't be resurrected.
+- **Roster nudges.** Membership changes also fan out over the same sockets as a
+  data-less `{v:1, type:"roster"}` frame so a creator's **room controls update
+  in near-real time**: the Worker calls the DO's `broadcastRoster()` when a
+  joiner lands in a live room (`POST /api/rooms`) and on revoke. The frame
+  carries **no** member data — the roster (roles, join times) stays creator-only
+  behind `GET …/members`, which the client re-pulls on the nudge **and on every
+  socket (re)connect**, so a nudge missed while the socket was down can't leave
+  the list stale. Manual rooms get no DO and no nudges; their room controls
+  refresh only via the Refresh button.
 - **Revocation & nuke.** `DELETE …/members/:id` also closes that member's
-  sockets (`4001`); `DELETE /api/rooms/:roomId` closes all (`4004`).
+  sockets (`4001`) and nudges the survivors' rosters; `DELETE /api/rooms/:roomId`
+  closes all (`4004`).
 - **Client behaviour** (`src/lib/live.ts`): downstream-only socket; on every
   (re)connect the app catches up with one HTTP pull; reconnects use capped
   exponential backoff + jitter and give up (with a visible warning) after a
-  few attempts; `4001`/`4004` are terminal. Incoming updates are decrypted
-  locally and applied subject to a per-client conflict policy (`overwrite`
-  default, or `warn` which keeps unsaved edits and points at Pull).
+  few attempts; `4001`/`4004` are terminal. Incoming `update` frames are
+  decrypted locally and applied subject to a per-client conflict policy
+  (`overwrite` default, or `warn` which keeps unsaved edits and points at Pull);
+  a `roster` frame — and each (re)connect's catch-up — re-pulls the creator's
+  member list.
 
 ### Membership, roles & sealing
 - **Create vs join, enforced server-side.** `mode:"create"` inserts the sole
@@ -276,6 +294,7 @@ Shared by crypto and API-client modules; UI renders the error in the
   sync (`test/live.test.ts`, real in-process WebSockets): the handshake matrix
   (`101` + subprotocol echo / `401` / `404` / `409` manual / `426`), fanout with
   echo suppression and the D1 write-through, no broadcast to an expired room,
+  roster nudges fanning out on join/revoke (and never for a manual join),
   revoke closing exactly the revoked member's socket with `4001`, nuke closing
   all with `4004`, and manual rooms never instantiating a DO.
 

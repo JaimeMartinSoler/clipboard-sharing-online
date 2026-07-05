@@ -286,6 +286,15 @@ app.post("/api/rooms", async (c) => {
       409,
     );
   }
+  // A joiner landing in a live room grows the creator's roster; nudge the
+  // room's sockets so its room-controls view refreshes in near-real time.
+  // Skipped for manual rooms (no DO/sockets by contract) and for a create
+  // (no other members yet, and the creator's own socket connects afterwards).
+  if (result.role === "joiner" && result.syncMode !== "manual") {
+    c.executionCtx.waitUntil(
+      c.env.ROOM.get(c.env.ROOM.idFromName(body.roomId)).broadcastRoster(),
+    );
+  }
   // The raw token is returned exactly once; only its hash is stored server-side.
   return c.json({
     token,

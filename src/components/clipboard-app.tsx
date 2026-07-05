@@ -122,6 +122,12 @@ export function ClipboardApp() {
 
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  // Bumped whenever a live `roster` frame arrives (a terminal joined or was
+  // revoked) and on every socket (re)connect, so the creator's room controls
+  // re-pull the member list in near real time — a reconnect catch-up covers any
+  // nudge missed while the socket was down. Manual rooms never receive these —
+  // they keep the Refresh button.
+  const [rosterSignal, setRosterSignal] = useState(0);
 
   // Mirrors for async callbacks (live updates, debounced pushes) that must see
   // the latest values without re-subscribing.
@@ -135,6 +141,14 @@ export function ClipboardApp() {
   ttlMsRef.current = ttlMs;
   /** The text as last agreed with the server (pushed, pulled, or applied). */
   const lastSyncedRef = useRef("");
+
+  // The room view pushes one history entry so Back (and the header click, which
+  // routes through it) returns to the entry view instead of leaving the site.
+  // `roomHistoryPushed` tracks that entry; `suppressPopHome` marks a pop we make
+  // ourselves (a non-Back exit) so the resulting popstate doesn't re-run goHome
+  // and clobber the exit's status message.
+  const roomHistoryPushed = useRef(false);
+  const suppressPopHome = useRef(false);
 
   // Tick once a second only while there is a live countdown.
   useEffect(() => {
@@ -153,10 +167,26 @@ export function ClipboardApp() {
 
   const remaining = expiresAt === null ? null : expiresAt - now;
 
+  /**
+   * Pop the room's pushed history entry, if any, without letting the resulting
+   * popstate re-run goHome. Called on every programmatic exit (Leave, revoke,
+   * room gone, slot lost, remove) via dropSession so the history stack stays
+   * balanced however the room is left — a real Back press pops the entry in the
+   * browser and clears the flag in the popstate handler instead.
+   */
+  const popRoomHistory = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (!roomHistoryPushed.current) return;
+    roomHistoryPushed.current = false;
+    suppressPopHome.current = true;
+    window.history.back();
+  }, []);
+
   const dropSession = useCallback(() => {
+    popRoomHistory();
     setSession(null);
     setExpiresAt(null);
-  }, []);
+  }, [popRoomHistory]);
 
   /** Replace the text box and reset its undo/redo history (join/leave/nuke). */
   const resetText = useCallback((value: string) => {
@@ -446,6 +476,11 @@ export function ClipboardApp() {
     onOpen: () => {
       const s = sessionRef.current;
       if (!s) return;
+      // Also re-pull the roster: a membership change (join/revoke) whose
+      // `roster` nudge landed while our socket was down would otherwise leave
+      // the creator's list stale until a manual Refresh. Harmless for joiners,
+      // whose CreatorPanel isn't mounted.
+      setRosterSignal((n) => n + 1);
       void (async () => {
         const res = await pullClipboard(s.roomId, s.token);
         if (res.ok) await applyRemote(res.value);
@@ -453,6 +488,8 @@ export function ClipboardApp() {
       })();
     },
     onUpdate: (update) => void applyRemote(update),
+    // A terminal joined or was revoked: signal the creator panel to re-pull.
+    onRoster: () => setRosterSignal((n) => n + 1),
     onRevoked: () => {
       dropSession();
       resetText("");
@@ -531,6 +568,64 @@ export function ClipboardApp() {
         "Left the room — your slot is forfeited (it still counts until the room expires).",
     });
   }, [dropSession, resetText]);
+
+  /**
+   * Return to the entry ("main") view, dropping the in-memory session. Used by
+   * the header title/lock click and the browser Back button (see the history
+   * effects below) so both land on the main page instead of leaving the site.
+   */
+  const goHome = useCallback(() => {
+    debouncerRef.current?.cancel();
+    dropSession();
+    resetText("");
+    setStatus({ kind: "info", message: "" });
+  }, [dropSession, resetText]);
+
+  // Give the room view its own history entry so the browser Back button (and
+  // the header click, which routes through it) returns to the entry view
+  // instead of navigating away from the site. Pushed once per room entry;
+  // dropSession/popRoomHistory pops it back off on any non-Back exit.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (session && !roomHistoryPushed.current) {
+      roomHistoryPushed.current = true;
+      window.history.pushState({ csoRoom: true }, "");
+    } else if (!session) {
+      roomHistoryPushed.current = false;
+    }
+  }, [session]);
+
+  // Back button: pop returns us to the entry view rather than off-site.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onPopState = () => {
+      // A pop we triggered ourselves (a non-Back exit) — the entry is already
+      // gone; don't re-run goHome over the exit's status message.
+      if (suppressPopHome.current) {
+        suppressPopHome.current = false;
+        return;
+      }
+      // A real Back press while in a room: the browser has popped our entry, so
+      // clear the flag and return to the entry view.
+      if (sessionRef.current) {
+        roomHistoryPushed.current = false;
+        goHome();
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [goHome]);
+
+  // Header title/lock click dispatches this; if we're in a room, step Back so
+  // the pushed room entry is popped and popstate drives us home cleanly.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onHome = () => {
+      if (sessionRef.current) window.history.back();
+    };
+    window.addEventListener("cso:home", onHome);
+    return () => window.removeEventListener("cso:home", onHome);
+  }, []);
 
   const handleRemoveRoom = useCallback(async () => {
     if (!session) return;
@@ -618,6 +713,7 @@ export function ClipboardApp() {
               onStatus={setStatus}
               onSessionInvalid={handleSessionInvalid}
               onRemoveRoom={handleRemoveRoom}
+              refreshSignal={rosterSignal}
             />
           )}
 
