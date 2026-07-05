@@ -66,9 +66,9 @@ export default function PrivacyPage() {
             only ever holds:
           </p>
           <ul className="list-disc space-y-1 pl-5">
-            <li>an opaque room id,</li>
-            <li>the ciphertext and its nonce,</li>
-            <li>timestamps.</li>
+            <li>An opaque room id.</li>
+            <li>The ciphertext and its nonce.</li>
+            <li>Timestamps.</li>
           </ul>
           <p>
             It <strong>never</strong> sees the plaintext or any key that could
@@ -86,10 +86,10 @@ export default function PrivacyPage() {
             key (<strong>Argon2id + HKDF</strong>) — nothing else is exchanged:
           </p>
           <ul className="list-disc space-y-1 pl-5">
-            <li>no accounts,</li>
-            <li>no room codes,</li>
+            <li>No accounts.</li>
+            <li>No room codes.</li>
             <li>
-              the password is <strong>never persisted</strong> anywhere, not
+              The password is <strong>never persisted</strong> anywhere, not
               even on this device.
             </li>
           </ul>
