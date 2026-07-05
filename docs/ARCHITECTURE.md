@@ -143,16 +143,27 @@ validation, and uniform error responses that don't leak room existence.
   while its sockets stay connected, so it accrues no duration billing.
 - **Write path.** For live rooms the Worker validates everything (auth, shape,
   size, TTL clamp) then calls the DO, which runs the same D1 `UPDATE … WHERE
-  expires_at > now` guard and broadcasts in one serialized turn — every member
-  observes pushes in commit order, and an expired room can't be resurrected.
+  expires_at > now` guard and broadcasts `{v:1, type:"update", …}` in one
+  serialized turn — every member observes pushes in commit order, and an expired
+  room can't be resurrected.
+- **Roster nudges.** Membership changes also fan out over the same sockets as a
+  data-less `{v:1, type:"roster"}` frame so a creator's **room controls update
+  in near-real time**: the Worker calls the DO's `broadcastRoster()` when a
+  joiner lands in a live room (`POST /api/rooms`) and on revoke. The frame
+  carries **no** member data — the roster (roles, join times) stays creator-only
+  behind `GET …/members`, which the client re-pulls on the nudge. Manual rooms
+  get no DO and no nudges; their room controls refresh only via the Refresh
+  button.
 - **Revocation & nuke.** `DELETE …/members/:id` also closes that member's
-  sockets (`4001`); `DELETE /api/rooms/:roomId` closes all (`4004`).
+  sockets (`4001`) and nudges the survivors' rosters; `DELETE /api/rooms/:roomId`
+  closes all (`4004`).
 - **Client behaviour** (`src/lib/live.ts`): downstream-only socket; on every
   (re)connect the app catches up with one HTTP pull; reconnects use capped
   exponential backoff + jitter and give up (with a visible warning) after a
-  few attempts; `4001`/`4004` are terminal. Incoming updates are decrypted
-  locally and applied subject to a per-client conflict policy (`overwrite`
-  default, or `warn` which keeps unsaved edits and points at Pull).
+  few attempts; `4001`/`4004` are terminal. Incoming `update` frames are
+  decrypted locally and applied subject to a per-client conflict policy
+  (`overwrite` default, or `warn` which keeps unsaved edits and points at Pull);
+  a `roster` frame re-pulls the creator's member list.
 
 ### Membership, roles & sealing
 - **Create vs join, enforced server-side.** `mode:"create"` inserts the sole
@@ -276,6 +287,7 @@ Shared by crypto and API-client modules; UI renders the error in the
   sync (`test/live.test.ts`, real in-process WebSockets): the handshake matrix
   (`101` + subprotocol echo / `401` / `404` / `409` manual / `426`), fanout with
   echo suppression and the D1 write-through, no broadcast to an expired room,
+  roster nudges fanning out on join/revoke (and never for a manual join),
   revoke closing exactly the revoked member's socket with `4001`, nuke closing
   all with `4004`, and manual rooms never instantiating a DO.
 

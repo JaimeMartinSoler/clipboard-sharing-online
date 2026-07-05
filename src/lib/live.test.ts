@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   connectLive,
   type LiveEvent,
+  parseLiveFrame,
   parseLiveMessage,
   type SocketLike,
   wsUrl,
@@ -92,6 +93,32 @@ describe("parseLiveMessage", () => {
   });
 });
 
+describe("parseLiveFrame", () => {
+  it("recognises a data-less roster nudge", () => {
+    expect(parseLiveFrame(JSON.stringify({ v: 1, type: "roster" }))).toEqual({
+      ok: true,
+      value: { type: "roster" },
+    });
+  });
+
+  it("wraps a valid update frame", () => {
+    const frame = { v: 1, type: "update", ciphertext: "Q1R4", iv: "SVY", expiresAt: 7 };
+    expect(parseLiveFrame(JSON.stringify(frame))).toEqual({
+      ok: true,
+      value: { type: "update", update: { ciphertext: "Q1R4", iv: "SVY", expiresAt: 7 } },
+    });
+  });
+
+  it("rejects pongs, wrong versions, and malformed update frames", () => {
+    expect(parseLiveFrame("pong").ok).toBe(false);
+    expect(parseLiveFrame(JSON.stringify({ v: 2, type: "roster" })).ok).toBe(false);
+    expect(parseLiveFrame(JSON.stringify({ v: 1, type: "nudge" })).ok).toBe(false);
+    expect(
+      parseLiveFrame(JSON.stringify({ v: 1, type: "update", ciphertext: "!", iv: "SVY", expiresAt: 1 })).ok,
+    ).toBe(false);
+  });
+});
+
 describe("connectLive", () => {
   it("emits open and forwards parsed updates", () => {
     const { sockets, events } = harness();
@@ -106,6 +133,15 @@ describe("connectLive", () => {
       { type: "open" },
       { type: "update", update: { ciphertext: "Q1R4", iv: "SVY", expiresAt: 9 } },
     ]);
+  });
+
+  it("forwards a roster nudge as a roster event", () => {
+    const { sockets, events } = harness();
+    const ws = sockets[0]!;
+    ws.onopen?.();
+    ws.onmessage?.({ data: JSON.stringify({ v: 1, type: "roster" }) });
+
+    expect(events).toEqual([{ type: "open" }, { type: "roster" }]);
   });
 
   it("sends keepalive pings while open", () => {

@@ -140,6 +140,27 @@ export class RoomDO extends DurableObject<Bindings> {
         // Already closed.
       }
     }
+    // The roster just shrank; nudge whoever is still connected (the creator's
+    // room-controls view) to re-pull the member list.
+    await this.broadcastRoster();
+  }
+
+  /**
+   * Signal every connected socket that the room's membership changed, so a
+   * creator's room-controls view can refresh itself. Carries NO member data —
+   * the roster (roles, join times) is creator-only and stays on the HTTP
+   * `GET /members` endpoint; this is only a "something changed, re-pull" ping.
+   * A revoked socket that is mid-close simply errors on send and is skipped.
+   */
+  async broadcastRoster(): Promise<void> {
+    const message = JSON.stringify({ v: 1, type: "roster" });
+    for (const ws of this.ctx.getWebSockets()) {
+      try {
+        ws.send(message);
+      } catch {
+        // Socket already closing/errored; the runtime reaps it.
+      }
+    }
   }
 
   /** Room nuked (or expired): close everything and drop the alarm. */

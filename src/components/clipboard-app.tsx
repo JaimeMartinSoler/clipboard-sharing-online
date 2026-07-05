@@ -122,6 +122,10 @@ export function ClipboardApp() {
 
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  // Bumped whenever a live `roster` frame arrives (a terminal joined or was
+  // revoked), so the creator's room controls re-pull the member list in near
+  // real time. Manual rooms never receive these — they keep the Refresh button.
+  const [rosterSignal, setRosterSignal] = useState(0);
 
   // Mirrors for async callbacks (live updates, debounced pushes) that must see
   // the latest values without re-subscribing.
@@ -453,6 +457,8 @@ export function ClipboardApp() {
       })();
     },
     onUpdate: (update) => void applyRemote(update),
+    // A terminal joined or was revoked: signal the creator panel to re-pull.
+    onRoster: () => setRosterSignal((n) => n + 1),
     onRevoked: () => {
       dropSession();
       resetText("");
@@ -618,6 +624,7 @@ export function ClipboardApp() {
               onStatus={setStatus}
               onSessionInvalid={handleSessionInvalid}
               onRemoveRoom={handleRemoveRoom}
+              refreshSignal={rosterSignal}
             />
           )}
 

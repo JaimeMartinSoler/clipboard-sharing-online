@@ -1,7 +1,7 @@
 "use client";
 
 import { RefreshCw, Trash2, UserMinus } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Hint } from "@/components/hint";
 import type { Session, Status } from "@/components/room-types";
 import { Button } from "@/components/ui/button";
@@ -18,9 +18,13 @@ import { formatDateTime } from "@/lib/datetime";
  * controls. Everything here is a convenience on top of the server-side creator
  * checks: a joiner who forged this UI still gets 403/401 from the Worker.
  *
- * - An on-demand table of who is in the room (role + join time), refreshed on
- *   mount and via the Refresh button, with a Remove button per joiner. Removing
- *   revokes that token; the sealed slot does NOT reopen.
+ * - A table of who is in the room (role + join time), with a Remove button per
+ *   joiner. Removing revokes that token; the sealed slot does NOT reopen. The
+ *   roster refreshes on mount, via the Refresh button, and — in live rooms
+ *   (`push`/`typing`) — automatically whenever `refreshSignal` bumps (the
+ *   `ClipboardApp` increments it on each live `roster` frame, i.e. a terminal
+ *   joined or was revoked). Manual rooms never get those frames, so there the
+ *   Refresh button is the only way to update the list.
  * - Nuke the whole room (blob + members). Link/password sharing lives in
  *   `ShareControls`, which every member sees.
  */
@@ -29,11 +33,18 @@ export function CreatorPanel({
   onStatus,
   onSessionInvalid,
   onRemoveRoom,
+  refreshSignal = 0,
 }: {
   session: Session;
   onStatus: (status: Status) => void;
   onSessionInvalid: () => void;
   onRemoveRoom: () => void;
+  /**
+   * Monotonic counter bumped by the parent on each live `roster` frame; a change
+   * triggers an automatic re-pull. Defaults to `0` (never changes) for manual
+   * rooms, where only the Refresh button updates the list.
+   */
+  refreshSignal?: number;
 }) {
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -87,6 +98,18 @@ export function CreatorPanel({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Live rooms bump `refreshSignal` on every membership change (join/revoke);
+  // re-pull when it does. The initial `0` is skipped so this never double-fetches
+  // alongside the mount load above.
+  const didInitSignal = useRef(false);
+  useEffect(() => {
+    if (!didInitSignal.current) {
+      didInitSignal.current = true;
+      return;
+    }
+    void refresh();
+  }, [refreshSignal, refresh]);
 
   const handleRemove = useCallback(
     async (member: MemberRow) => {

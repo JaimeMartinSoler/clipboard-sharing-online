@@ -31,10 +31,20 @@ export type LiveEvent =
   | { type: "open" }
   /** A member pushed; the payload is ciphertext to decrypt locally. */
   | { type: "update"; update: LiveUpdate }
+  /** Membership changed (join/revoke); re-pull the roster over HTTP. */
+  | { type: "roster" }
   /** Connection lost; a retry is scheduled (attempt counts from 1). */
   | { type: "reconnecting"; attempt: number }
   /** Terminal — the client must NOT reconnect. */
   | { type: "closed"; reason: LiveClosedReason };
+
+/**
+ * A frame the server can broadcast on the downstream channel: an `update`
+ * (ciphertext to apply) or a data-less `roster` nudge (membership changed).
+ */
+export type LiveFrame =
+  | { type: "update"; update: LiveUpdate }
+  | { type: "roster" };
 
 export type LiveClosedReason =
   /** This member was revoked by the creator (close code 4001). */
@@ -95,7 +105,29 @@ export function wsUrl(
   return `${scheme}//${loc.host}${path}`;
 }
 
-/** Parse one incoming frame. Non-update frames (e.g. "pong") are errors. */
+/**
+ * Parse one incoming downstream frame into a `LiveFrame`. Recognises the
+ * data-less `roster` nudge and the content `update`; everything else (e.g. a
+ * "pong" keepalive answer, an unknown version) is an error the caller drops.
+ */
+export function parseLiveFrame(data: unknown): Result<LiveFrame> {
+  if (typeof data !== "string") return err("Not a text frame.");
+  let raw: unknown;
+  try {
+    raw = JSON.parse(data);
+  } catch {
+    return err("Not JSON.");
+  }
+  if (typeof raw !== "object" || raw === null) return err("Not an object.");
+  const o = raw as Record<string, unknown>;
+  if (o.v !== 1) return err("Unknown version.");
+  if (o.type === "roster") return ok({ type: "roster" });
+  const update = parseLiveMessage(data);
+  if (!update.ok) return err(update.error);
+  return ok({ type: "update", update: update.value });
+}
+
+/** Parse one incoming update frame. Non-update frames (e.g. "pong") are errors. */
 export function parseLiveMessage(data: unknown): Result<LiveUpdate> {
   if (typeof data !== "string") return err("Not a text frame.");
   let raw: unknown;
@@ -188,9 +220,9 @@ export function connectLive({
       onEvent({ type: "open" });
     };
     ws.onmessage = (event) => {
-      const parsed = parseLiveMessage(event.data);
-      // Silently skip non-update frames ("pong" keepalives, unknown versions).
-      if (parsed.ok) onEvent({ type: "update", update: parsed.value });
+      const parsed = parseLiveFrame(event.data);
+      // Silently skip unrecognised frames ("pong" keepalives, unknown versions).
+      if (parsed.ok) onEvent(parsed.value);
     };
     ws.onerror = () => {
       // The close event (which always follows) drives the state machine.
