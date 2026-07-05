@@ -1,12 +1,13 @@
 "use client";
 
-import { Info, Lock } from "lucide-react";
+import { Info } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { EncryptedBadge, HEADER_PILL_CLASS } from "@/components/encrypted-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export function Header() {
-  // Clicking the title/lock should return to the entry ("main") view. When we're
+  // Clicking the title/logo should return to the entry ("main") view. When we're
   // already on "/", the app is a single client view, so navigating there is a
   // no-op — instead dispatch an event ClipboardApp listens for to drop the room
   // session (routing through Back so history stays clean). From other routes
@@ -25,7 +26,13 @@ export function Header() {
         onClick={handleHomeClick}
         className="flex min-w-0 items-center gap-2 font-semibold"
       >
-        <Lock className="size-5 shrink-0" />
+        <Image
+          src="/logo.png"
+          alt=""
+          width={20}
+          height={20}
+          className="size-5 shrink-0 dark:invert"
+        />
         <span className="truncate">Clipboard Sharing Online</span>
       </Link>
       <div className="ml-auto flex items-center gap-3">

@@ -137,7 +137,7 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   scrubs the fragment. The QR uses a vendored, dependency-free encoder
   (`src/lib/qr.ts`) as inline SVG. Room administration (roster + Remove room)
   stays creator-only in the `CreatorPanel`, rendered below the Share options.
-  Clicking the header title/lock (or the browser Back button) returns to the
+  Clicking the header title/logo (or the browser Back button) returns to the
   entry view: entering a room pushes a history entry (`ClipboardApp`) so Back
   pops home instead of leaving the site, and the header dispatches a `cso:home`
   event the app routes through that same Back.
