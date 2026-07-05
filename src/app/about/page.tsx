@@ -24,7 +24,7 @@ export default function AboutPage() {
         This page has been created by Jaime Martín Soler with the help of
         Claude...
         <br />
-        or probably viceversa... 😅
+        or probably vice versa... 😅
       </p>
 
       <div className="rounded-lg border bg-card p-6">

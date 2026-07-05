@@ -2,7 +2,7 @@
 
 import { Info, Lock } from "lucide-react";
 import Link from "next/link";
-import { EncryptedBadge } from "@/components/encrypted-badge";
+import { EncryptedBadge, HEADER_PILL_CLASS } from "@/components/encrypted-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export function Header() {
@@ -35,7 +35,7 @@ export function Header() {
             href="/about"
             aria-label="About"
             title="About"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground transition-colors hover:bg-accent"
+            className={HEADER_PILL_CLASS}
           >
             <Info className="size-3.5 shrink-0" />
             <span className="hidden whitespace-nowrap md:inline">About</span>
