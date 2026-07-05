@@ -39,7 +39,7 @@ terminal cap is an access-control layer *on top of* the encryption (see
 ```
 .                          # package "web": Next.js 15 static-export frontend
 ├─ src/
-│  ├─ app/                 # App Router: page.tsx (the tool), privacy/, layout.tsx
+│  ├─ app/                 # App Router: page.tsx (the tool), privacy/, about/, layout.tsx
 │  ├─ components/          # shared UI (StatusBanner, Hint, buttons, editor…)
 │  │  └─ ui/               # shadcn-style primitives
 │  └─ lib/

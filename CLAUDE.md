@@ -166,9 +166,10 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   aesthetic, the single always-on `StatusBanner`
   (`error > warning > info > validated`), on-hover `Hint` tooltips, a visible
   lock-icon "End-to-end encrypted — your password never leaves this browser"
-  badge, and a `/privacy` page. As a single-tool app, drop the multi-tool
-  sidebar/registry
-  scaffolding.
+  badge, a header "100% encrypted" pill badge + About pill (same responsive
+  format as `office-tools-online`: icon-only on phones, text from `md:` up),
+  a `/privacy` page, and an `/about` page. As a single-tool app, drop the
+  multi-tool sidebar/registry scaffolding.
 - **Entry view** puts the Create/Join buttons on top and tucks the room options
   (Sealed/Open toggle, Terminals, Sharing mode) under a collapsed-by-default
   **Advanced Settings** panel — simple by default, configurable on demand.

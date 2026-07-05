@@ -108,7 +108,7 @@ derivation is deterministic and the salt is fixed — see
 ```
 .                       # package "clipboard-sharing-online": Next.js frontend
 ├─ src/
-│  ├─ app/              # page.tsx (the tool), privacy/, layout.tsx
+│  ├─ app/              # page.tsx (the tool), privacy/, about/, layout.tsx
 │  ├─ components/       # StatusBanner, Hint, ui/* primitives, the tool
 │  └─ lib/              # result.ts, crypto.ts, api.ts, live.ts, debounce.ts, … (+ tests)
 ├─ public/_headers      # strict CSP
