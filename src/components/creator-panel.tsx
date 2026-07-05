@@ -1,8 +1,7 @@
 "use client";
 
-import { QrCode, RefreshCw, Trash2, UserMinus } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { CopyButton } from "@/components/copy-button";
+import { RefreshCw, Trash2, UserMinus } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { Hint } from "@/components/hint";
 import type { Session, Status } from "@/components/room-types";
 import { Button } from "@/components/ui/button";
@@ -13,49 +12,31 @@ import {
   removeMember,
 } from "@/lib/api";
 import { formatDateTime } from "@/lib/datetime";
-import { qrSvg } from "@/lib/qr";
-import { buildShareUrl } from "@/lib/room-link";
 
 /**
- * Creator-only controls, shown above the shared editor. Everything here is a
- * convenience on top of the server-side creator checks: a joiner who forged this
- * UI still gets 403/401 from the Worker.
+ * Creator-only controls, shown below the shared editor and the (shared) Share
+ * controls. Everything here is a convenience on top of the server-side creator
+ * checks: a joiner who forged this UI still gets 403/401 from the Worker.
  *
  * - An on-demand table of who is in the room (role + join time), refreshed on
  *   mount and via the Refresh button, with a Remove button per joiner. Removing
  *   revokes that token; the sealed slot does NOT reopen.
- * - Share the auto-join link (password lives in the URL *fragment*, never sent
- *   to the server) and a QR of the same link for phones.
- * - Nuke the whole room (blob + members).
+ * - Nuke the whole room (blob + members). Link/password sharing lives in
+ *   `ShareControls`, which every member sees.
  */
 export function CreatorPanel({
   session,
-  password,
   onStatus,
   onSessionInvalid,
   onRemoveRoom,
 }: {
   session: Session;
-  password: string;
   onStatus: (status: Status) => void;
   onSessionInvalid: () => void;
   onRemoveRoom: () => void;
 }) {
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showQr, setShowQr] = useState(false);
-
-  const shareUrl = useMemo(() => {
-    const origin =
-      typeof window !== "undefined" ? window.location.origin : "";
-    const res = buildShareUrl(origin, password);
-    return res.ok ? res.value : "";
-  }, [password]);
-
-  const qrMarkup = useMemo(
-    () => (showQr && shareUrl ? qrSvg(shareUrl) : null),
-    [showQr, shareUrl],
-  );
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -141,24 +122,6 @@ export function CreatorPanel({
           creator
         </span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Hint text="Copy the auto-join link. The password rides in the URL fragment (after #), which browsers never send to the server.">
-            <CopyButton
-              value={shareUrl}
-              label="Share link"
-              disabled={!shareUrl}
-              variant="outline"
-            />
-          </Hint>
-          <Hint text="Show a QR of the same link so a phone can join by scanning it.">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowQr((v) => !v)}
-              disabled={!shareUrl}
-            >
-              <QrCode /> {showQr ? "Hide QR" : "Show QR"}
-            </Button>
-          </Hint>
           <Hint text="Delete the room, its members, and its content for everyone. Cannot be undone.">
             <Button size="sm" variant="destructive" onClick={handleRemoveRoom}>
               <Trash2 /> Remove room
@@ -166,25 +129,6 @@ export function CreatorPanel({
           </Hint>
         </div>
       </div>
-
-      {showQr &&
-        (qrMarkup ? (
-          <div className="flex flex-col items-center gap-2">
-            <div
-              className="h-48 w-48 rounded-md border bg-white p-2"
-              // Inline SVG only — no external refs, safe under the strict CSP.
-              dangerouslySetInnerHTML={{ __html: qrMarkup }}
-            />
-            <span className="break-all text-center text-xs text-muted-foreground">
-              {shareUrl}
-            </span>
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            This link is too long to encode as a QR — use the Share link button
-            instead.
-          </p>
-        ))}
 
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
