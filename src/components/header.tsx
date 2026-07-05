@@ -1,7 +1,8 @@
 "use client";
 
-import { Lock } from "lucide-react";
+import { Info, Lock } from "lucide-react";
 import Link from "next/link";
+import { EncryptedBadge, HEADER_PILL_CLASS } from "@/components/encrypted-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export function Header() {
@@ -28,12 +29,18 @@ export function Header() {
         <span className="truncate">Clipboard Sharing Online</span>
       </Link>
       <div className="ml-auto flex items-center gap-3">
-        <Link
-          href="/privacy"
-          className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          Privacy
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          <EncryptedBadge />
+          <Link
+            href="/about"
+            aria-label="About"
+            title="About"
+            className={HEADER_PILL_CLASS}
+          >
+            <Info className="size-3.5 shrink-0" />
+            <span className="hidden whitespace-nowrap md:inline">About</span>
+          </Link>
+        </div>
         <ThemeToggle />
       </div>
     </header>
