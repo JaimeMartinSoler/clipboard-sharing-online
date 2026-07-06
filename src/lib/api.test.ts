@@ -79,6 +79,49 @@ describe("joinRoom", () => {
     expect(JSON.parse(init.body as string).syncMode).toBe("manual");
   });
 
+  it("falls back to manual when the response omits syncMode (older API)", async () => {
+    // An older Worker build (pre sync-mode) answers 2xx without `syncMode`;
+    // the client must degrade to exact legacy behavior, not crash the room.
+    mockFetch(
+      json({ token: "t", joined: 1, capacity: 2, sealed: false, role: "creator" }),
+    );
+    const res = await joinRoom("room-1", 2, "create", "push");
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.value.syncMode).toBe("manual");
+  });
+
+  it("falls back to manual on an unrecognized syncMode value", async () => {
+    mockFetch(
+      json({
+        token: "t",
+        joined: 1,
+        capacity: 2,
+        sealed: false,
+        role: "joiner",
+        syncMode: "telepathy",
+      }),
+    );
+    const res = await joinRoom("room-1", 2, "join");
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.value.syncMode).toBe("manual");
+  });
+
+  it("keeps a valid server syncMode untouched", async () => {
+    mockFetch(
+      json({
+        token: "t",
+        joined: 2,
+        capacity: 2,
+        sealed: true,
+        role: "joiner",
+        syncMode: "typing",
+      }),
+    );
+    const res = await joinRoom("room-1", 2, "join");
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.value.syncMode).toBe("typing");
+  });
+
   it("maps 409 to EXISTS on create and SEALED on join", async () => {
     mockFetch(json({ error: "exists" }, 409));
     expect(await joinRoom("r", 2, "create")).toEqual({

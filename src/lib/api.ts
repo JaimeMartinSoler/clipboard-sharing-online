@@ -52,6 +52,19 @@ export type JoinMode = "create" | "join";
  */
 export type SyncMode = "manual" | "push" | "typing";
 
+const SYNC_MODES: readonly SyncMode[] = ["manual", "push", "typing"];
+
+/**
+ * Total read of a server-sent sync mode. The frontend (Pages) and the Worker
+ * deploy independently, so the API answering a create/join may be an older
+ * build whose response has no `syncMode` (or, in principle, an unknown value).
+ * Falling back to `manual` mirrors the server's own legacy default and keeps
+ * the room usable (Push/Pull, no socket) instead of crashing the room view.
+ */
+function normalizeSyncMode(value: unknown): SyncMode {
+  return SYNC_MODES.includes(value as SyncMode) ? (value as SyncMode) : "manual";
+}
+
 export interface JoinResponse {
   token: string;
   joined: number;
@@ -115,7 +128,9 @@ export async function joinRoom(
   }
   if (res.status === 400) return err(ApiError.BAD_REQUEST);
   if (!res.ok) return err(ApiError.SERVER);
-  return readJson<JoinResponse>(res);
+  const body = await readJson<JoinResponse>(res);
+  if (!body.ok) return body;
+  return ok({ ...body.value, syncMode: normalizeSyncMode(body.value.syncMode) });
 }
 
 /** List a room's members. Creator-only server-side (403 for a joiner). */

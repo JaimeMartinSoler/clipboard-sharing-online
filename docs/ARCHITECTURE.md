@@ -279,7 +279,10 @@ Shared by crypto and API-client modules; UI renders the error in the
 - **Frontend (Vitest):** crypto round-trip, wrong-password-fails, determinism
   (`deriveKeys` is stable for a password and differs across passwords), base64url
   edge cases, unicode, and size-limit handling in the API client. Plus the API
-  client's create/join `mode`, role, and creator-only calls; `room-link`
+  client's create/join `mode`, role, and creator-only calls (including its
+  `syncMode` normalization: a create/join response with a missing or unknown
+  `syncMode` — e.g. an older Worker build during a deploy skew — degrades to
+  `manual` instead of crashing the room view); `room-link`
   fragment round-trip (password never in path/query); `qr` structural invariants
   (finder patterns, timing track, version selection); and the datetime formatter.
 - **Worker (`@cloudflare/vitest-pool-workers`):** upsert→get round-trip against a
