@@ -7,10 +7,10 @@ const REPO_URL = "https://github.com/JaimeMartinSoler/clipboard-sharing-online";
 
 const OTHER_SITES = [
   {
-    name: "office-tools-online",
-    url: "https://office-tools-online.com",
+    name: "office-dev-tools.com",
+    url: "https://office-dev-tools.com",
     description:
-      "Free, private office tools (PDF, image, and text utilities) that run entirely in your browser — no backend, nothing ever uploaded.",
+      "Free, private office tools (json formatter, json to yaml/xml/csv, case converter, base64... and much more) that run entirely in your browser — no backend, nothing ever uploaded.",
   },
 ];
 
