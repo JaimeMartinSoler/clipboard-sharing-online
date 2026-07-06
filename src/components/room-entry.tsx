@@ -173,13 +173,13 @@ export function RoomEntry({
         <PasswordStrengthMeter password={password} />
 
         {/* Advanced settings — collapsed by default, applies to created rooms. */}
-        <div className="rounded-md border">
+        <div className="rounded-md border bg-muted/70">
           <button
             type="button"
             aria-expanded={advancedOpen}
             aria-controls="advanced-settings"
             onClick={() => onAdvancedOpenChange(!advancedOpen)}
-            className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-muted/50"
+            className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-muted"
           >
             <span className="flex items-center gap-2">
               <Settings className="size-4 text-muted-foreground" />
