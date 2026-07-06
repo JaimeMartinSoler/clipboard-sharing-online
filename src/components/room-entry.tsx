@@ -173,7 +173,7 @@ export function RoomEntry({
         <PasswordStrengthMeter password={password} />
 
         {/* Advanced settings — collapsed by default, applies to created rooms. */}
-        <div className="rounded-md border bg-muted/50">
+        <div className="rounded-md border bg-muted/70">
           <button
             type="button"
             aria-expanded={advancedOpen}
