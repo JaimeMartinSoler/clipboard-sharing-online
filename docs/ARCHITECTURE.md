@@ -311,10 +311,17 @@ for `/api/*`, Pages serves the rest):
   other branches = the `develop` staging slot), output `./out`.
 - **Worker:** `.github/workflows/deploy-worker.yml` runs `wrangler d1 migrations
   apply --remote` then `wrangler deploy`. `main` uses the top-level `wrangler.toml`
-  (prod Worker + D1 + route); `develop` uses `--env develop`, an isolated staging
-  Worker + D1 + route declared under `[env.develop]`. Named-environment config is
-  **not** inherited, so `d1_databases`/`triggers`/`vars`/`routes` are repeated
-  there on purpose.
+  (prod Worker + D1 + route); every other ref — a `develop` push or a
+  `workflow_dispatch` from any non-`main` branch — uses `--env develop`, an
+  isolated staging Worker + D1 + route declared under `[env.develop]`.
+  Named-environment config is **not** inherited, so
+  `d1_databases`/`triggers`/`vars`/`routes` are repeated there on purpose.
+  When editing the workflow's branch selectors, mind that GitHub Actions
+  `&&`/`||` expressions are value-returning and an empty string is **falsy**:
+  keep the non-empty flag in the truthy arm
+  (`ref != 'main' && '--env develop' || ''`), otherwise every branch —
+  including `main` — falls through to the `||` arm and prod never deploys
+  (this once pinned prod's API to a stale build while runs stayed green).
 - **Same-origin hosts:** each host is a Pages custom domain plus a Worker `/api/*`
   route on that host. The develop custom domain serves the `develop` **branch**
   (not `main`) via a proxied `CNAME` to the branch's `*.pages.dev` alias — see the
