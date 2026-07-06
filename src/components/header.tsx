@@ -24,16 +24,16 @@ export function Header() {
       <Link
         href="/"
         onClick={handleHomeClick}
-        className="flex min-w-0 items-center gap-2 font-semibold"
+        className="flex min-w-0 items-center gap-2.5 font-semibold"
       >
         <Image
           src="/logo.png"
           alt=""
-          width={20}
-          height={20}
-          className="size-5 shrink-0 dark:invert"
+          width={28}
+          height={28}
+          className="size-7 shrink-0 dark:invert"
         />
-        <span className="truncate">Clipboard Sharing Online</span>
+        <span className="truncate leading-tight">Clipboard Sharing Online</span>
       </Link>
       <div className="ml-auto flex items-center gap-3">
         <div className="flex shrink-0 items-center gap-2">
