@@ -48,7 +48,11 @@ jobs:
           ${{ github.ref_name == 'main' && 'clipboard-sharing-online' || 'clipboard-sharing-online-develop --env develop' }}
           --remote
 
+      # GHA `&&`/`||` are value-returning, not a ternary: an empty string in the
+      # truthy arm is FALSY, so `ref == 'main' && '' || '--env develop'` deployed
+      # `--env develop` on every branch — including main — silently pinning prod
+      # to a stale build. Keep the non-empty value in the truthy arm.
       - name: Deploy Worker
         run: >
           pnpm --filter worker exec wrangler deploy
-          ${{ github.ref_name == 'main' && '' || '--env develop' }}
+          ${{ github.ref_name != 'main' && '--env develop' || '' }}
