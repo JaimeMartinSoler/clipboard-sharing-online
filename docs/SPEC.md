@@ -76,7 +76,8 @@ ciphertext it has no way to decrypt.
   validated`): e.g. *"Joined as terminal 1 of 2 — waiting for 1 more"*, *"Room
   sealed (2/2) — sharing is locked to these terminals"*, *"Room is sealed — no
   free slot"*, *"Your slot was lost (reload/closed) — locked out until this room
-  expires"*, *"Encrypted & pushed — expires in 10 min"*, *"Pulled & decrypted"*,
+  expires"*, *"Encrypted & pushed."* (the banner appends a live *"· expires in
+  10 min"* countdown), *"Pulled & decrypted"*,
   *"No data in this room (or wrong password)"*, *"Couldn't decrypt — check the
   password"*.
 - A visible **🔒 End-to-end encrypted** badge and a `/privacy` page explaining
