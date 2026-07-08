@@ -20,7 +20,7 @@ export function Header() {
   }
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-4">
+    <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-secondary px-4">
       <Link
         href="/"
         onClick={handleHomeClick}
@@ -33,7 +33,7 @@ export function Header() {
           height={28}
           className="size-7 shrink-0 dark:invert"
         />
-        <span className="truncate leading-tight">Clipboard Sharing Online</span>
+        <span className="truncate leading-normal">Clipboard Sharing Online</span>
       </Link>
       <div className="ml-auto flex items-center gap-3">
         <div className="flex shrink-0 items-center gap-2">

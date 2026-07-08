@@ -68,7 +68,7 @@ describe("isWeakPassword", () => {
     }
   });
 
-  it("removes forbidden words recursively before judging the remainder", () => {
+  it("strips forbidden words before judging the remainder", () => {
     // "1234" is weak, so "key1234" is weak once "key" is stripped.
     expect(isWeakPassword("key1234")).toBe(true);
     // A strong remainder survives even though the input contains "pass".
@@ -82,5 +82,14 @@ describe("isWeakPassword", () => {
     for (const pw of ["9xKmQ2vL", "Tr7b4Dz1pR", "k3Wm9"]) {
       expect(isWeakPassword(pw)).toBe(false);
     }
+  });
+
+  it("stays fast and correct on long inputs (no recursion / entropy blowup)", () => {
+    // A long, varied passphrase must not be demoted to weak, and must return
+    // promptly — the previous recursive + entropy design misbehaved here.
+    const long = "correct-horse-battery-staple-9xKmQ2vL-Tr7b4Dz1pR".repeat(20);
+    expect(isWeakPassword(long)).toBe(false);
+    // Even a pathological input full of forbidden words terminates cleanly.
+    expect(isWeakPassword("password".repeat(100))).toBe(true);
   });
 });

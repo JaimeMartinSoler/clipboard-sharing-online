@@ -4,6 +4,7 @@ import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 
 const REPO_URL = "https://github.com/JaimeMartinSoler/clipboard-sharing-online";
+const AUTHOR_URL = "https://github.com/JaimeMartinSoler";
 
 const OTHER_SITES = [
   {
@@ -17,7 +18,7 @@ const OTHER_SITES = [
 export const metadata: Metadata = {
   title: "About",
   description:
-    "About Clipboard Sharing Online — built by Jaime Martín Soler with the help of Claude. View the source on GitHub.",
+    "About Clipboard Sharing Online — built by Jaime Martín Soler. View the source on GitHub.",
   alternates: { canonical: "/about/" },
 };
 
@@ -29,19 +30,11 @@ export default function AboutPage() {
         <h1 className="text-2xl font-semibold tracking-tight">About</h1>
       </div>
 
-      <p className="text-center text-lg text-muted-foreground">
-        This page has been created by Jaime Martín Soler with the help of
-        Claude...
-        <br />
-        or probably vice versa... 😅
-      </p>
-
-      <div className="rounded-lg border bg-card p-6">
+      <section className="space-y-3 rounded-lg border bg-card p-6">
         <p className="text-center text-sm text-muted-foreground">
-          The whole project is open source. Take a look at the code, open an
-          issue, or just have a browse.
+          Take a look at the code, open an issue, or just have a browse.
         </p>
-        <div className="mt-4 flex justify-center">
+        <div className="flex justify-center">
           <Link
             href={REPO_URL}
             target="_blank"
@@ -52,31 +45,52 @@ export default function AboutPage() {
             clipboard-sharing-online
           </Link>
         </div>
+      </section>
+
+      <div className="space-y-3">
+        <h2 className="text-center text-lg font-semibold tracking-tight">
+          Other useful websites
+        </h2>
+        <section className="space-y-3 rounded-lg border bg-card p-6">
+          <div className="flex flex-col items-center gap-3">
+            {OTHER_SITES.map((site) => (
+              <div
+                key={site.url}
+                className="flex w-full flex-col items-center gap-2"
+              >
+                <Link
+                  href={site.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={buttonVariants({
+                    variant: "secondary",
+                    size: "lg",
+                  })}
+                >
+                  <ExternalLink className="size-4" />
+                  {site.name}
+                </Link>
+                <p className="w-full text-center text-sm text-muted-foreground">
+                  {site.description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
 
-      <div className="rounded-lg border bg-card p-6">
-        <p className="text-center text-sm text-muted-foreground">
-          Other useful websites:
-        </p>
-        <div className="mt-4 flex flex-col items-center gap-3">
-          {OTHER_SITES.map((site) => (
-            <div key={site.url} className="flex flex-col items-center gap-2">
-              <Link
-                href={site.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={buttonVariants({ variant: "secondary", size: "lg" })}
-              >
-                <ExternalLink className="size-4" />
-                {site.name}
-              </Link>
-              <p className="max-w-sm text-center text-xs text-muted-foreground">
-                {site.description}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
+      <p className="text-center text-muted-foreground">
+        This page has been created by{" "}
+        <Link
+          href={AUTHOR_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-foreground underline underline-offset-4"
+        >
+          Jaime Martín Soler
+        </Link>
+        .
+      </p>
     </div>
   );
 }
