@@ -13,6 +13,11 @@ import { cn } from "@/lib/utils";
  * Children stay mounted so the open/close can animate, so when collapsed the
  * subtree is marked `inert` (not focusable, not read by AT) and `aria-hidden`.
  * Users who prefer reduced motion get an instant toggle (`motion-reduce`).
+ *
+ * Consumer `className` (borders, padding) lands on an inner wrapper, never on
+ * the `overflow-hidden` clip track: padding/border on a `0fr` grid row can't
+ * shrink below its own box, so putting them on the track would leave a residual
+ * height strip when collapsed. Keeping the track box-free lets it collapse to 0.
  */
 export function Collapse({
   open,
@@ -23,7 +28,7 @@ export function Collapse({
   open: boolean;
   /** Ties the panel to its trigger's `aria-controls`. */
   id?: string;
-  /** Extra classes on the inner content track (e.g. borders, padding). */
+  /** Extra classes on the content wrapper inside the clip track (e.g. borders, padding). */
   className?: string;
   children: ReactNode;
 }) {
@@ -42,10 +47,9 @@ export function Collapse({
         className={cn(
           "min-h-0 overflow-hidden transition-opacity duration-200 ease-out motion-reduce:transition-none",
           open ? "opacity-100" : "opacity-0",
-          className,
         )}
       >
-        {children}
+        <div className={className}>{children}</div>
       </div>
     </div>
   );
