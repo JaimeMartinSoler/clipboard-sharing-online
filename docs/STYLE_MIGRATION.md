@@ -30,7 +30,7 @@ adjacent shares a shade:
 | `--background`| Page body, inputs/textarea (`bg-background`)      | `body`, `Input`, `Select`, `Textarea` |
 | `--card`      | Content panels (`bg-card`)                        | Room entry, Share, Creator, Privacy/About sections |
 | `--secondary` | **Header bar** (`bg-secondary`)                   | `Header`, `Button variant="secondary"` |
-| `--muted`     | **Badges + Advanced Settings** raised surface (`bg-muted`) | Header pills, Advanced Settings panel, mono display boxes |
+| `--muted`     | **Badges** raised surface (`bg-muted`), and at 50% (`bg-muted/50`) the **info status banner + Advanced Settings** panel | Header pills, mono display boxes (`bg-muted`); info `StatusBanner` + Advanced Settings panel (`bg-muted/50`) |
 | `--accent`    | Hover state for the badge/panel surface (`hover:bg-accent`) | Header pills, Advanced Settings rows, ghost/outline buttons |
 | `--border` / `--input` | Hairlines and control borders            | global `*` border, inputs |
 
@@ -41,6 +41,32 @@ it, and the pills match the Advanced Settings panel for a coherent palette.
 ---
 
 ## Change log
+
+### 2026-07-08 — Lighten Advanced Settings panel to the info-banner shade (issue #59)
+
+Goal: the Advanced Settings panel read too dark after the previous entry darkened
+`--muted`. Match it to the info `StatusBanner`'s badge background — a softer,
+half-strength muted surface — so the two raised areas on the entry view share one
+shade.
+
+**1. Token values** — no `globals.css` variables changed. This entry only swaps
+which Tailwind utility consumes `--muted`:
+
+| Mode | Variable | Before | After | Note |
+| ---- | -------- | ------ | ----- | ---- |
+| `:root` / `.dark` | `--muted` | unchanged | unchanged | now also drives the panel at 50% via `bg-muted/50` |
+
+**2. Component class changes**
+
+- `src/components/room-entry.tsx` — Advanced Settings container: `bg-muted` →
+  `bg-muted/50` (matches the info `StatusBanner`, which already uses
+  `bg-muted/50`).
+
+**3. Migration to a sibling**
+
+- No token values to copy. On the sibling's equivalent Advanced Settings / options
+  panel, change its container background from `bg-muted` to `bg-muted/50` so it
+  matches the info status banner's badge background.
 
 ### 2026-07-08 — Header / badge / panel grays + softer dark background (issue #56)
 
