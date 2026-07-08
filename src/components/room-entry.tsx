@@ -174,7 +174,7 @@ export function RoomEntry({
         <PasswordStrengthMeter password={password} />
 
         {/* Advanced settings — collapsed by default, applies to created rooms.
-            `bg-muted/50` matches the info status banner's badge background so the
+            `bg-muted/50` matches the info status banner's background so the
             panel reads as the same soft surface (see docs/STYLE_MIGRATION.md). */}
         <div className="rounded-md border bg-muted/50">
           <button
