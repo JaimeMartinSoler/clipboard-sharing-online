@@ -206,7 +206,10 @@ export function RoomEntry({
               uses the creator&apos;s settings.
             </p>
 
-            {/* Private / Public toggle */}
+            {/* Private / Public toggle. The row border and the off-state track
+                use `accent` (one step darker than the `muted` panel) so they
+                keep a visible edge — `border`/`bg-input` share the panel's
+                lightness in light mode and would vanish (see STYLE_MIGRATION). */}
             <div className="flex flex-col gap-1">
               <button
                 type="button"
@@ -214,7 +217,7 @@ export function RoomEntry({
                 aria-checked={sealedRoom}
                 aria-label={sealedRoom ? "Private room" : "Public room"}
                 onClick={() => onSealedRoomChange(!sealedRoom)}
-                className="flex items-center justify-between gap-3 rounded-md border p-3 text-left transition-colors hover:bg-accent"
+                className="flex items-center justify-between gap-3 rounded-md border border-accent p-3 text-left transition-colors hover:bg-accent"
               >
                 <span className="flex items-center gap-2 text-sm font-medium">
                   {sealedRoom ? (
@@ -227,7 +230,7 @@ export function RoomEntry({
                 <span
                   className={cn(
                     "relative h-5 w-9 shrink-0 rounded-full transition-colors",
-                    sealedRoom ? "bg-primary" : "bg-input",
+                    sealedRoom ? "bg-primary" : "bg-accent",
                   )}
                 >
                   <span

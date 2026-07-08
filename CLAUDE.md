@@ -186,11 +186,23 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   triples: `--background`, `--card`, `--secondary` = header, `--muted` = badges +
   raised panels, `--accent` = their hover). **Any requirement that changes shared
   visual style — colors, the theme tokens, the header, badges, panels, spacing —
-  MUST record the change (before/after values + affected component classes) in
-  `docs/STYLE_MIGRATION.md` as part of that same PR**, so a sibling can replay it
-  with one prompt. Treat this as part of "update the docs" (see
-  `.claude/rules/update-docs.md`); a shared-style change is not done until
-  `STYLE_MIGRATION.md` is true again.
+  MUST append a new dated entry to the `docs/STYLE_MIGRATION.md` change log in the
+  same PR**, so a sibling can replay it with one prompt. Treat this as part of
+  "update the docs" (see `.claude/rules/update-docs.md`); a shared-style change is
+  not done until `STYLE_MIGRATION.md` is true again. Every change-log entry MUST
+  follow this fixed format (see the existing entries for a worked example):
+  - **Heading** — `### <YYYY-MM-DD> — <short title> (issue #<n> / PR #<n>)`.
+    Use absolute dates and reference the issue and/or PR.
+  - **Goal** — one or two sentences on the visual intent (the *why*).
+  - **Token values** — a before/after table per mode (`:root` / `.dark`) for every
+    `globals.css` variable touched, with a one-line note on each. Mark unchanged
+    tokens explicitly if they gain a new role.
+  - **Component class changes** — a bullet per component file, naming the exact
+    className swap (`old` → `new`).
+  - **Migration to a sibling** — the copy-paste instructions to replay it (which
+    token values to copy, which class choices to mirror).
+
+  This keeps the doc a deterministic, replayable spec rather than a prose diary.
 
 ## Commands
 - Frontend (root): `pnpm dev` / `pnpm build` (→ `./out`) / `pnpm test` / `pnpm lint`.

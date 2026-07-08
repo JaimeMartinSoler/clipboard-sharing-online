@@ -93,3 +93,35 @@ Dark mode (`.dark`):
 `globals.css` (matching `:root` / `.dark`), then apply the same `bg-secondary`
 (header), `bg-muted` (badges + raised panels), and `hover:bg-accent` (their
 hover) class choices to the equivalent components.
+
+---
+
+### 2026-07-08 — Advanced Settings control edges keep definition on the muted panel (issue #56 / PR #58)
+
+Goal: after the panel became a solid `bg-muted`, the resting controls that sit
+directly on it lost their outline in **light mode** — `--border` and `--input`
+(both `90%`) share the panel's lightness (`--muted` `240 5% 90%`), so the
+Private/Public switch row border and its off-state track were near-invisible
+until hover/toggle. Give those edges the next step darker.
+
+**1. Token values** — no `globals.css` changes. This entry reuses the existing
+`--accent` token (light `240 5% 86%`, dark `240 5% 27%`) — deliberately one step
+darker than `--muted`, so it reads as an edge in both modes:
+
+| Token      | Light          | Dark          | Relation to panel (`--muted`) |
+| ---------- | -------------- | ------------- | ----------------------------- |
+| `--muted`  | `240 5% 90%`   | `240 5% 22%`  | the Advanced Settings panel |
+| `--accent` | `240 5% 86%`   | `240 5% 27%`  | one step off → visible edge |
+
+**2. Component class changes**
+
+- `src/components/room-entry.tsx` — the Private/Public switch row `border` →
+  `border border-accent`; the off-state switch track `bg-input` → `bg-accent`
+  (the `on` state stays `bg-primary`). Nothing else changes; the `--border` /
+  `--input` tokens are untouched so inputs elsewhere (on `bg-card` / white) keep
+  their hairline.
+
+**Migration to a sibling:** wherever a bordered control or an off-state toggle
+track sits on the `bg-muted` raised panel, use `border-accent` / `bg-accent`
+instead of the default `border` / `bg-input` so the edge survives the
+90%-on-90% collision in light mode.
