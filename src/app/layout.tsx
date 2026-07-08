@@ -90,7 +90,10 @@ export default function RootLayout({
           <TooltipProvider delayDuration={300}>
             <div className="flex h-screen flex-col overflow-hidden">
               <Header />
-              <main className="flex-1 overflow-y-auto p-4 md:p-6">
+              {/* `scrollbar-gutter: stable` always reserves the scrollbar's
+                  space, so content never shifts horizontally when a scrollbar
+                  appears/disappears (e.g. expanding Advanced Settings). */}
+              <main className="flex-1 overflow-y-auto p-4 [scrollbar-gutter:stable] md:p-6">
                 {children}
               </main>
             </div>

@@ -657,22 +657,26 @@ export function ClipboardApp() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       {session ? (
         <>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Clipboard room
+          {/* Three columns (spacer | title | button) so the title stays
+              centered on the container whether or not the Leave button is
+              present — an equal-width empty spacer balances the button's cell. */}
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            <div aria-hidden="true" />
+            <h1 className="text-center text-2xl font-semibold tracking-tight">
+              Clipboard Room
             </h1>
             {/* Only a joiner may Leave (forfeiting their slot). The creator
                 cannot — leaving would orphan the room with no way back in — so
                 they use "Remove room" in the creator panel instead. */}
-            {session.role === "joiner" && (
-              <div className="ml-auto">
+            <div className="justify-self-end">
+              {session.role === "joiner" && (
                 <Hint text="Leave the room. Your slot is forfeited but still counts against the cap until the room expires.">
                   <Button variant="outline" size="sm" onClick={handleLeave}>
                     <LogOut /> Leave
                   </Button>
                 </Hint>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           <StatusBanner kind={status.kind}>
