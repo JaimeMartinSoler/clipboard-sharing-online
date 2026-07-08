@@ -12,11 +12,15 @@
   --popover-foreground: 240 10% 3.9%;
   --primary: 240 5.9% 10%;
   --primary-foreground: 0 0% 98%;
+  /* Header surface — a subtle light gray, one step off the white body. */
   --secondary: 240 4.8% 95.9%;
   --secondary-foreground: 240 5.9% 10%;
-  --muted: 240 4.8% 95.9%;
+  /* Badge / raised-panel surface (header pills + Advanced Settings) — a shade
+     darker than the header so the two never read as the same block. */
+  --muted: 240 5% 90%;
   --muted-foreground: 240 3.8% 46.1%;
-  --accent: 240 4.8% 95.9%;
+  /* Hover for the badge/panel surface — one step darker again. */
+  --accent: 240 5% 86%;
   --accent-foreground: 240 5.9% 10%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 98%;
@@ -27,24 +31,30 @@
 }
 
 .dark {
-  --background: 240 10% 3.9%;
+  /* Main dark background — lifted from the old near-black ~9/255 (3.9%) to a
+     softer ~32/255 (12.5%) so large surfaces read as charcoal, not void. */
+  --background: 240 6% 12.5%;
   --foreground: 0 0% 98%;
-  --card: 240 10% 3.9%;
+  --card: 240 6% 12.5%;
   --card-foreground: 0 0% 98%;
-  --popover: 240 10% 3.9%;
+  --popover: 240 6% 12.5%;
   --popover-foreground: 0 0% 98%;
   --primary: 0 0% 98%;
   --primary-foreground: 240 5.9% 10%;
-  --secondary: 240 3.7% 15.9%;
+  /* Header surface — elevated one step above the charcoal body. */
+  --secondary: 240 5% 18%;
   --secondary-foreground: 0 0% 98%;
-  --muted: 240 3.7% 15.9%;
+  /* Badge / raised-panel surface (header pills + Advanced Settings) — a further
+     step up so it stays distinct from the header. */
+  --muted: 240 5% 22%;
   --muted-foreground: 240 5% 64.9%;
-  --accent: 240 3.7% 15.9%;
+  /* Hover for the badge/panel surface. */
+  --accent: 240 5% 27%;
   --accent-foreground: 0 0% 98%;
   --destructive: 0 62.8% 50.6%;
   --destructive-foreground: 0 0% 98%;
-  --border: 240 3.7% 15.9%;
-  --input: 240 3.7% 15.9%;
+  --border: 240 5% 20%;
+  --input: 240 5% 20%;
   --ring: 240 4.9% 83.9%;
 }
 

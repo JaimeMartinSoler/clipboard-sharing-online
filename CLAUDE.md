@@ -180,6 +180,17 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   stored** — only the generator kind, used to reseed a fresh one. Theme is
   persisted separately by `next-themes`. Reads are total (SSR/corruption-safe →
   defaults); prefs are applied in a post-hydration effect so SSR markup matches.
+- **Sibling-site style parity (`docs/STYLE_MIGRATION.md`).** This app shares its
+  look with sibling web apps (`office-tools-online` / office-dev-tools.com).
+  Theme tokens live as CSS variables in `src/app/globals.css` (shadcn-style HSL
+  triples: `--background`, `--card`, `--secondary` = header, `--muted` = badges +
+  raised panels, `--accent` = their hover). **Any requirement that changes shared
+  visual style — colors, the theme tokens, the header, badges, panels, spacing —
+  MUST record the change (before/after values + affected component classes) in
+  `docs/STYLE_MIGRATION.md` as part of that same PR**, so a sibling can replay it
+  with one prompt. Treat this as part of "update the docs" (see
+  `.claude/rules/update-docs.md`); a shared-style change is not done until
+  `STYLE_MIGRATION.md` is true again.
 
 ## Commands
 - Frontend (root): `pnpm dev` / `pnpm build` (→ `./out`) / `pnpm test` / `pnpm lint`.
