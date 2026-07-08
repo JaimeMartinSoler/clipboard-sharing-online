@@ -174,9 +174,9 @@ export function RoomEntry({
         <PasswordStrengthMeter password={password} />
 
         {/* Advanced settings — collapsed by default, applies to created rooms.
-            `bg-muted` matches the header pills so the raised surfaces share one
-            shade (see docs/STYLE_MIGRATION.md). */}
-        <div className="rounded-md border bg-muted">
+            `bg-muted/50` matches the info status banner's background so the
+            panel reads as the same soft surface (see docs/STYLE_MIGRATION.md). */}
+        <div className="rounded-md border bg-muted/50">
           <button
             type="button"
             aria-expanded={advancedOpen}
