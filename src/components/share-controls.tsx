@@ -4,6 +4,7 @@ import { Check, Copy, Eye, EyeOff, QrCode, Share2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { Hint } from "@/components/hint";
 import { Button } from "@/components/ui/button";
+import { Collapse } from "@/components/ui/collapse";
 import { qrSvg } from "@/lib/qr";
 import { buildShareUrl } from "@/lib/room-link";
 
@@ -34,9 +35,11 @@ export function ShareControls({ password }: { password: string }) {
     return res.ok ? res.value : "";
   }, [password]);
 
+  // Built whenever a link exists (not gated on `showQr`) so the reveal has
+  // content to slide open — the Collapse keeps it mounted but height-clipped.
   const qrMarkup = useMemo(
-    () => (showQr && shareUrl ? qrSvg(shareUrl) : null),
-    [showQr, shareUrl],
+    () => (shareUrl ? qrSvg(shareUrl) : null),
+    [shareUrl],
   );
 
   const copy = useCallback(
@@ -73,59 +76,64 @@ export function ShareControls({ password }: { password: string }) {
   }, [shareUrl, copy]);
 
   return (
-    <section className="flex flex-col gap-3 rounded-lg border bg-card p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-sm font-medium">Share options</h2>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Invite another device to this room. <strong>Anyone with the password
-        or link can join</strong> — only share it with people you trust.
-      </p>
+    // No parent `gap-*`: the reveals below animate open, so their spacing lives
+    // inside the Collapse (a `mt-3` that eases in with the height) — otherwise a
+    // zero-height collapsed reveal would still leave a flex gap behind it.
+    <section className="flex flex-col rounded-lg border bg-card p-4">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-sm font-medium">Share options</h2>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Invite another device to this room. <strong>Anyone with the password
+          or link can join</strong> — only share it with people you trust.
+        </p>
 
-      {/* Buttons: icon pinned to the left, label centered in the remaining
-          space. Portrait splits the row into two equal columns; wider screens
-          size all four to the widest so they never jump when a label changes
-          (e.g. "Copy password" → "Copied"). */}
-      <div className="grid w-full grid-cols-2 gap-2 sm:inline-grid sm:grid-cols-4 sm:w-auto">
-        <ShareButton
-          hint="Copy the room password to your clipboard without revealing it on screen."
-          icon={passwordCopied ? <Check /> : <Copy />}
-          label={passwordCopied ? "Copied" : "Copy password"}
-          onClick={() => void copy(password, setPasswordCopied)}
-          disabled={!password}
-        />
-        <ShareButton
-          hint="Reveal the room password here so you can read it aloud or retype it on another device."
-          icon={showPassword ? <EyeOff /> : <Eye />}
-          label={showPassword ? "Hide password" : "Show password"}
-          onClick={() => setShowPassword((v) => !v)}
-          disabled={!password}
-        />
-        <ShareButton
-          hint="Share the auto-join link — the phone share sheet on mobile, or copy on desktop. The password rides in the URL fragment (after #), which browsers never send to the server."
-          icon={linkCopied ? <Check /> : <Share2 />}
-          label={linkCopied ? "Copied" : "Share link"}
-          onClick={() => void handleShareLink()}
-          disabled={!shareUrl}
-        />
-        <ShareButton
-          hint="Show a QR of the same link so a phone can join by scanning it."
-          icon={<QrCode />}
-          label={showQr ? "Hide QR" : "Show QR"}
-          onClick={() => setShowQr((v) => !v)}
-          disabled={!shareUrl}
-        />
+        {/* Buttons: icon pinned to the left, label centered in the remaining
+            space. Portrait splits the row into two equal columns; wider screens
+            size all four to the widest so they never jump when a label changes
+            (e.g. "Copy password" → "Copied"). */}
+        <div className="grid w-full grid-cols-2 gap-2 sm:inline-grid sm:grid-cols-4 sm:w-auto">
+          <ShareButton
+            hint="Copy the room password to your clipboard without revealing it on screen."
+            icon={passwordCopied ? <Check /> : <Copy />}
+            label={passwordCopied ? "Copied" : "Copy password"}
+            onClick={() => void copy(password, setPasswordCopied)}
+            disabled={!password}
+          />
+          <ShareButton
+            hint="Reveal the room password here so you can read it aloud or retype it on another device."
+            icon={showPassword ? <EyeOff /> : <Eye />}
+            label={showPassword ? "Hide password" : "Show password"}
+            onClick={() => setShowPassword((v) => !v)}
+            disabled={!password}
+          />
+          <ShareButton
+            hint="Share the auto-join link — the phone share sheet on mobile, or copy on desktop. The password rides in the URL fragment (after #), which browsers never send to the server."
+            icon={linkCopied ? <Check /> : <Share2 />}
+            label={linkCopied ? "Copied" : "Share link"}
+            onClick={() => void handleShareLink()}
+            disabled={!shareUrl}
+          />
+          <ShareButton
+            hint="Show a QR of the same link so a phone can join by scanning it."
+            icon={<QrCode />}
+            label={showQr ? "Hide QR" : "Show QR"}
+            onClick={() => setShowQr((v) => !v)}
+            disabled={!shareUrl}
+          />
+        </div>
       </div>
 
-      {showPassword && password && (
-        <p className="break-all rounded-md border bg-muted/40 p-3 text-center font-mono text-sm">
+      <Collapse open={showPassword && !!password}>
+        <p className="mt-3 break-all rounded-md border bg-muted/40 p-3 text-center font-mono text-sm">
           {password}
         </p>
-      )}
+      </Collapse>
 
-      {showQr &&
-        (qrMarkup ? (
-          <div className="flex flex-col items-center gap-2">
+      <Collapse open={showQr}>
+        {qrMarkup ? (
+          <div className="mt-3 flex flex-col items-center gap-2">
             <div
               className="h-48 w-48 rounded-md border bg-white p-2"
               // Inline SVG only — no external refs, safe under the strict CSP.
@@ -136,11 +144,12 @@ export function ShareControls({ password }: { password: string }) {
             </span>
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">
+          <p className="mt-3 text-xs text-muted-foreground">
             This link is too long to encode as a QR — use the Share link button
             instead.
           </p>
-        ))}
+        )}
+      </Collapse>
     </section>
   );
 }

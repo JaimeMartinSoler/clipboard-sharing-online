@@ -17,6 +17,7 @@ import { PasswordStrengthMeter } from "@/components/password-strength-meter";
 import { PrivacyHighlights } from "@/components/privacy-highlights";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Collapse } from "@/components/ui/collapse";
 import { Select } from "@/components/ui/select";
 import type { SyncMode } from "@/lib/api";
 import { estimatePassword } from "@/lib/password-strength";
@@ -193,110 +194,109 @@ export function RoomEntry({
             />
           </button>
 
-          {advancedOpen && (
-            <div
-              id="advanced-settings"
-              className="flex flex-col gap-3 border-t p-3"
-            >
-              <p className="text-xs text-muted-foreground">
-                These apply to a room <strong>you create</strong> — joining a
-                room uses the creator&apos;s settings.
-              </p>
+          <Collapse
+            open={advancedOpen}
+            id="advanced-settings"
+            className="flex flex-col gap-3 border-t p-3"
+          >
+            <p className="text-xs text-muted-foreground">
+              These apply to a room <strong>you create</strong> — joining a room
+              uses the creator&apos;s settings.
+            </p>
 
-              {/* Private / Public toggle */}
-              <div className="flex flex-col gap-1">
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={sealedRoom}
-                  aria-label={sealedRoom ? "Private room" : "Public room"}
-                  onClick={() => onSealedRoomChange(!sealedRoom)}
-                  className="flex items-center justify-between gap-3 rounded-md border p-3 text-left transition-colors hover:bg-muted/50"
+            {/* Private / Public toggle */}
+            <div className="flex flex-col gap-1">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={sealedRoom}
+                aria-label={sealedRoom ? "Private room" : "Public room"}
+                onClick={() => onSealedRoomChange(!sealedRoom)}
+                className="flex items-center justify-between gap-3 rounded-md border p-3 text-left transition-colors hover:bg-muted/50"
+              >
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  {sealedRoom ? (
+                    <LockKeyhole className="size-4 text-foreground" />
+                  ) : (
+                    <LockKeyholeOpen className="size-4 text-muted-foreground" />
+                  )}
+                  {sealedRoom ? "Private room" : "Public room"}
+                </span>
+                <span
+                  className={cn(
+                    "relative h-5 w-9 shrink-0 rounded-full transition-colors",
+                    sealedRoom ? "bg-primary" : "bg-input",
+                  )}
                 >
-                  <span className="flex items-center gap-2 text-sm font-medium">
-                    {sealedRoom ? (
-                      <LockKeyhole className="size-4 text-foreground" />
-                    ) : (
-                      <LockKeyholeOpen className="size-4 text-muted-foreground" />
-                    )}
-                    {sealedRoom ? "Private room" : "Public room"}
-                  </span>
                   <span
                     className={cn(
-                      "relative h-5 w-9 shrink-0 rounded-full transition-colors",
-                      sealedRoom ? "bg-primary" : "bg-input",
+                      "absolute top-0.5 size-4 rounded-full bg-background shadow-sm transition-transform",
+                      sealedRoom ? "translate-x-4" : "translate-x-0.5",
                     )}
-                  >
-                    <span
-                      className={cn(
-                        "absolute top-0.5 size-4 rounded-full bg-background shadow-sm transition-transform",
-                        sealedRoom ? "translate-x-4" : "translate-x-0.5",
-                      )}
-                    />
-                  </span>
-                </button>
-                <p className="text-xs text-muted-foreground">
-                  {sealedRoom
-                    ? "Seals once the terminal limit is reached — no one else can join, ever."
-                    : "No terminal limit — anyone with the password can join at any time."}
-                </p>
-              </div>
-
-              {/* Terminals — only meaningful for a sealed room. */}
-              <label
-                htmlFor="capacity"
-                className={cn(
-                  "flex flex-col gap-1 text-xs",
-                  sealedRoom ? "text-muted-foreground" : "text-muted-foreground/60",
-                )}
-              >
-                Terminals
-                <Select
-                  id="capacity"
-                  containerClassName="w-full"
-                  className="w-full text-center"
-                  value={sealedRoom ? capacity : 0}
-                  disabled={!sealedRoom}
-                  onChange={(e) => onCapacityChange(Number(e.target.value))}
-                  aria-label="Terminals"
-                  title="How many devices may share this room. The room seals at this count. A public room has no limit."
-                >
-                  {sealedRoom ? (
-                    CAPACITY_OPTIONS.map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))
-                  ) : (
-                    <option value={0}>∞ (no limit for public rooms)</option>
-                  )}
-                </Select>
-              </label>
-
-              {/* Sharing mode */}
-              <label
-                htmlFor="sync-mode"
-                className="flex flex-col gap-1 text-xs text-muted-foreground"
-              >
-                Sharing mode
-                <Select
-                  id="sync-mode"
-                  containerClassName="w-full"
-                  className="w-full"
-                  value={syncMode}
-                  onChange={(e) => onSyncModeChange(e.target.value as SyncMode)}
-                  aria-label="Sharing mode"
-                  title="How text reaches the other terminals. Live modes deliver instantly over an encrypted connection; Manual keeps explicit Push and Pull only. Fixed for the room's lifetime."
-                >
-                  {SYNC_MODE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </Select>
-              </label>
+                  />
+                </span>
+              </button>
+              <p className="text-xs text-muted-foreground">
+                {sealedRoom
+                  ? "Seals once the terminal limit is reached — no one else can join, ever."
+                  : "No terminal limit — anyone with the password can join at any time."}
+              </p>
             </div>
-          )}
+
+            {/* Terminals — only meaningful for a sealed room. */}
+            <label
+              htmlFor="capacity"
+              className={cn(
+                "flex flex-col gap-1 text-xs",
+                sealedRoom ? "text-muted-foreground" : "text-muted-foreground/60",
+              )}
+            >
+              Terminals
+              <Select
+                id="capacity"
+                containerClassName="w-full"
+                className="w-full text-center"
+                value={sealedRoom ? capacity : 0}
+                disabled={!sealedRoom}
+                onChange={(e) => onCapacityChange(Number(e.target.value))}
+                aria-label="Terminals"
+                title="How many devices may share this room. The room seals at this count. A public room has no limit."
+              >
+                {sealedRoom ? (
+                  CAPACITY_OPTIONS.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))
+                ) : (
+                  <option value={0}>∞ (no limit for public rooms)</option>
+                )}
+              </Select>
+            </label>
+
+            {/* Sharing mode */}
+            <label
+              htmlFor="sync-mode"
+              className="flex flex-col gap-1 text-xs text-muted-foreground"
+            >
+              Sharing mode
+              <Select
+                id="sync-mode"
+                containerClassName="w-full"
+                className="w-full"
+                value={syncMode}
+                onChange={(e) => onSyncModeChange(e.target.value as SyncMode)}
+                aria-label="Sharing mode"
+                title="How text reaches the other terminals. Live modes deliver instantly over an encrypted connection; Manual keeps explicit Push and Pull only. Fixed for the room's lifetime."
+              >
+                {SYNC_MODE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          </Collapse>
         </div>
       </section>
 
