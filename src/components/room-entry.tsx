@@ -173,14 +173,16 @@ export function RoomEntry({
         </div>
         <PasswordStrengthMeter password={password} />
 
-        {/* Advanced settings — collapsed by default, applies to created rooms. */}
-        <div className="rounded-md border bg-muted/70">
+        {/* Advanced settings — collapsed by default, applies to created rooms.
+            `bg-muted` matches the header pills so the raised surfaces share one
+            shade (see docs/STYLE_MIGRATION.md). */}
+        <div className="rounded-md border bg-muted">
           <button
             type="button"
             aria-expanded={advancedOpen}
             aria-controls="advanced-settings"
             onClick={() => onAdvancedOpenChange(!advancedOpen)}
-            className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-muted"
+            className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-accent"
           >
             <span className="flex items-center gap-2">
               <Settings className="size-4 text-muted-foreground" />
@@ -204,7 +206,10 @@ export function RoomEntry({
               uses the creator&apos;s settings.
             </p>
 
-            {/* Private / Public toggle */}
+            {/* Private / Public toggle. The row border and the off-state track
+                use `accent` (one step darker than the `muted` panel) so they
+                keep a visible edge — `border`/`bg-input` share the panel's
+                lightness in light mode and would vanish (see STYLE_MIGRATION). */}
             <div className="flex flex-col gap-1">
               <button
                 type="button"
@@ -212,7 +217,7 @@ export function RoomEntry({
                 aria-checked={sealedRoom}
                 aria-label={sealedRoom ? "Private room" : "Public room"}
                 onClick={() => onSealedRoomChange(!sealedRoom)}
-                className="flex items-center justify-between gap-3 rounded-md border p-3 text-left transition-colors hover:bg-muted/50"
+                className="flex items-center justify-between gap-3 rounded-md border border-accent p-3 text-left transition-colors hover:bg-accent"
               >
                 <span className="flex items-center gap-2 text-sm font-medium">
                   {sealedRoom ? (
@@ -225,7 +230,7 @@ export function RoomEntry({
                 <span
                   className={cn(
                     "relative h-5 w-9 shrink-0 rounded-full transition-colors",
-                    sealedRoom ? "bg-primary" : "bg-input",
+                    sealedRoom ? "bg-primary" : "bg-accent",
                   )}
                 >
                   <span

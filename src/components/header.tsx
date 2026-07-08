@@ -20,7 +20,7 @@ export function Header() {
   }
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-4">
+    <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-secondary px-4">
       <Link
         href="/"
         onClick={handleHomeClick}
