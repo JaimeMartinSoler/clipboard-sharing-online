@@ -658,8 +658,8 @@ export function ClipboardApp() {
       {session ? (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Clipboard room
+            <h1 className="flex-1 text-center text-2xl font-semibold tracking-tight">
+              Clipboard Room
             </h1>
             {/* Only a joiner may Leave (forfeiting their slot). The creator
                 cannot — leaving would orphan the room with no way back in — so

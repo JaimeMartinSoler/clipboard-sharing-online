@@ -32,8 +32,7 @@ export default function AboutPage() {
 
       <section className="space-y-3 rounded-lg border bg-card p-6">
         <p className="text-center text-sm text-muted-foreground">
-          The whole project is open source. Take a look at the code, open an
-          issue, or just have a browse.
+          Take a look at the code, open an issue, or just have a browse.
         </p>
         <div className="flex justify-center">
           <Link
@@ -48,29 +47,37 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="space-y-3 rounded-lg border bg-card p-6">
-        <p className="text-center text-sm text-muted-foreground">
-          Other useful websites:
-        </p>
-        <div className="flex flex-col items-center gap-3">
-          {OTHER_SITES.map((site) => (
-            <div key={site.url} className="flex flex-col items-center gap-2">
-              <Link
-                href={site.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={buttonVariants({ variant: "secondary", size: "lg" })}
+      <div className="space-y-3">
+        <h2 className="text-center text-lg font-semibold tracking-tight">
+          Other useful websites
+        </h2>
+        <section className="space-y-3 rounded-lg border bg-card p-6">
+          <div className="flex flex-col items-center gap-3">
+            {OTHER_SITES.map((site) => (
+              <div
+                key={site.url}
+                className="flex w-full flex-col items-center gap-2"
               >
-                <ExternalLink className="size-4" />
-                {site.name}
-              </Link>
-              <p className="max-w-sm text-center text-xs text-muted-foreground">
-                {site.description}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
+                <Link
+                  href={site.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={buttonVariants({
+                    variant: "secondary",
+                    size: "lg",
+                  })}
+                >
+                  <ExternalLink className="size-4" />
+                  {site.name}
+                </Link>
+                <p className="w-full text-center text-sm text-muted-foreground">
+                  {site.description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
 
       <p className="text-center text-muted-foreground">
         This page has been created by{" "}
