@@ -395,7 +395,9 @@ export function ClipboardApp() {
       if (!opts.silent) {
         setStatus({
           kind: "validated",
-          message: `Encrypted & pushed — expires in ${formatRemaining(res.value.expiresAt - Date.now())}.`,
+          // The banner appends a persistent "· expires in …" countdown, so the
+          // message itself stays countdown-free to avoid a doubled expiry.
+          message: "Encrypted & pushed.",
         });
       }
     } finally {
