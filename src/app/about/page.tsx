@@ -59,38 +59,36 @@ export default function AboutPage() {
           <h2 className="text-center text-lg font-semibold tracking-tight">
             Other useful websites
           </h2>
-          <section className="space-y-3 rounded-lg border bg-card p-6">
-            <div className="flex flex-col items-center gap-3">
-              {OTHER_SITES.map((site) => (
-                <div
-                  key={site.url}
-                  className="flex w-full flex-col items-center gap-2"
+          {OTHER_SITES.map((site) => (
+            <section
+              key={site.url}
+              className="space-y-3 rounded-lg border bg-card p-6"
+            >
+              <div className="flex flex-col items-center gap-2">
+                <Link
+                  href={site.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={buttonVariants({
+                    variant: "secondary",
+                    size: "lg",
+                  })}
                 >
-                  <Link
-                    href={site.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={buttonVariants({
-                      variant: "secondary",
-                      size: "lg",
-                    })}
-                  >
-                    <Image
-                      src={site.icon}
-                      alt=""
-                      width={16}
-                      height={16}
-                      className="size-4"
-                    />
-                    {site.name}
-                  </Link>
-                  <p className="w-full text-center text-sm text-muted-foreground">
-                    {site.description}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
+                  <Image
+                    src={site.icon}
+                    alt=""
+                    width={16}
+                    height={16}
+                    className="size-4"
+                  />
+                  {site.name}
+                </Link>
+                <p className="w-full text-center text-sm text-muted-foreground">
+                  {site.description}
+                </p>
+              </div>
+            </section>
+          ))}
         </div>
       </div>
 
