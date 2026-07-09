@@ -151,3 +151,34 @@ darker than `--muted`, so it reads as an edge in both modes:
 track sits on the `bg-muted` raised panel, use `border-accent` / `bg-accent`
 instead of the default `border` / `bg-input` so the edge survives the
 90%-on-90% collision in light mode.
+
+---
+
+### 2026-07-09 — Public/Private off-state track survives the row hover (issue #62 / PR #62)
+
+Goal: the Private/Public switch row hovers to `bg-accent`, but the previous entry
+(#58) also gave the **off-state** track `bg-accent`. On hover the track matched
+the row exactly, so the switch became invisible — only the white knob showed.
+Give the off-state track its own gray so it reads in the resting, hover, and
+toggled states.
+
+**1. Token values** — no `globals.css` changes. Reuses the existing
+`--muted-foreground` token at `40%` opacity for the off-state track; it stays
+distinct from both the `--muted` panel and the `--accent` hover in both modes:
+
+| Token               | Light         | Dark          | Role                              |
+| ------------------- | ------------- | ------------- | --------------------------------- |
+| `--muted`           | `240 5% 90%`  | `240 5% 22%`  | the Advanced Settings panel       |
+| `--accent`          | `240 5% 86%`  | `240 5% 27%`  | row border + row `hover` fill     |
+| `--muted-foreground`| `240 3.8% 46.1%` | `240 5% 64.9%` | off-state track (`/40` opacity) |
+
+**2. Component class changes**
+
+- `src/components/room-entry.tsx` — the off-state switch track
+  `bg-accent` → `bg-muted-foreground/40` (the `on` state stays `bg-primary`, the
+  row keeps `border-accent` + `hover:bg-accent`). The track no longer collides
+  with the row's own hover fill.
+
+**Migration to a sibling:** for any off-state toggle track that sits inside a row
+which itself hovers to `bg-accent`, use `bg-muted-foreground/40` (not `bg-accent`)
+so the track stays visible when the row is hovered.

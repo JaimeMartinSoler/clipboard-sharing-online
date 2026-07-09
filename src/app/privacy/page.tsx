@@ -1,4 +1,5 @@
 import {
+  Apple,
   Code,
   Hourglass,
   KeyRound,
@@ -182,6 +183,28 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Clear</strong> deletes the shared content immediately.
+            </li>
+          </ul>
+        </Section>
+
+        <Section icon={Apple} title="No cookies here">
+          <p>
+            Didn&apos;t you accept the cookies? Well, that&apos;s because this
+            website doesn&apos;t have cookies at all.
+          </p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>
+              No consent banner, no trackers — there&apos;s simply{" "}
+              <strong>nothing to accept</strong>.
+            </li>
+            <li>
+              Your theme and interface preferences live in this browser&apos;s{" "}
+              <strong>local storage</strong>, never in a cookie sent to any
+              server.
+            </li>
+            <li>
+              The privacy-preserving analytics are{" "}
+              <strong>cookieless by design</strong>.
             </li>
           </ul>
         </Section>
