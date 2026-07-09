@@ -206,10 +206,12 @@ export function RoomEntry({
               uses the creator&apos;s settings.
             </p>
 
-            {/* Private / Public toggle. The row border and the off-state track
-                use `accent` (one step darker than the `muted` panel) so they
-                keep a visible edge — `border`/`bg-input` share the panel's
-                lightness in light mode and would vanish (see STYLE_MIGRATION). */}
+            {/* Private / Public toggle. The row border uses `accent` (one step
+                darker than the `muted` panel) so it keeps a visible edge —
+                `border`/`bg-input` share the panel's lightness in light mode and
+                would vanish. The off-state track uses `muted-foreground/40`: the
+                row's own `hover:bg-accent` would otherwise swallow an `accent`
+                track on hover, hiding the switch (see STYLE_MIGRATION). */}
             <div className="flex flex-col gap-1">
               <button
                 type="button"
@@ -230,7 +232,7 @@ export function RoomEntry({
                 <span
                   className={cn(
                     "relative h-5 w-9 shrink-0 rounded-full transition-colors",
-                    sealedRoom ? "bg-primary" : "bg-accent",
+                    sealedRoom ? "bg-primary" : "bg-muted-foreground/40",
                   )}
                 >
                   <span
