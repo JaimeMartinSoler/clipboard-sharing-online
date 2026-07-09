@@ -4,14 +4,13 @@ import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 
 const REPO_URL = "https://github.com/JaimeMartinSoler/clipboard-sharing-online";
-const AUTHOR_URL = "https://github.com/JaimeMartinSoler";
 
 const OTHER_SITES = [
   {
     name: "office-dev-tools.com",
     url: "https://office-dev-tools.com",
     description:
-      "Free, private office tools (json formatter, json to yaml/xml/csv, case converter, base64... and much more) that run entirely in your browser — no backend, nothing ever uploaded.",
+      "Free, private office tools (json formatter, json to yaml/xml/csv, case converter, base64... and much more) that run entirely in your browser — no backend, nothing ever uploaded",
   },
 ];
 
@@ -31,9 +30,6 @@ export default function AboutPage() {
       </div>
 
       <section className="space-y-3 rounded-lg border bg-card p-6">
-        <p className="text-center text-sm text-muted-foreground">
-          Take a look at the code, open an issue, or just have a browse.
-        </p>
         <div className="flex justify-center">
           <Link
             href={REPO_URL}
@@ -45,6 +41,9 @@ export default function AboutPage() {
             clipboard-sharing-online
           </Link>
         </div>
+        <p className="text-center text-sm text-muted-foreground">
+          Take a look at the code, open an issue, or just have a browse
+        </p>
       </section>
 
       <div className="space-y-3">
@@ -80,16 +79,7 @@ export default function AboutPage() {
       </div>
 
       <p className="text-center text-muted-foreground">
-        This page has been created by{" "}
-        <Link
-          href={AUTHOR_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-medium text-foreground underline underline-offset-4"
-        >
-          Jaime Martín Soler
-        </Link>
-        .
+        This page has been created by Jaime Martín Soler
       </p>
     </div>
   );
