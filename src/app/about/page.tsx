@@ -3,8 +3,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
-
-const REPO_URL = "https://github.com/JaimeMartinSoler/clipboard-sharing-online";
+import { REPO_URL } from "@/lib/site";
 
 const OTHER_SITES = [
   {

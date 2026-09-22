@@ -182,3 +182,51 @@ distinct from both the `--muted` panel and the `--accent` hover in both modes:
 **Migration to a sibling:** for any off-state toggle track that sits inside a row
 which itself hovers to `bg-accent`, use `bg-muted-foreground/40` (not `bg-accent`)
 so the track stays visible when the row is hovered.
+
+### 2026-09-22 — Large social card + "Open source" header pill (PR #69)
+
+Goal: shared links unfurl as a full-width, on-brand 1200×630 card instead of
+the 256px favicon thumbnail, and the header gains a quiet "Open source" trust
+pill beside "100% encrypted" / "About" — added in the header so it costs the
+entry view no vertical space.
+
+**1. Token values** — no `globals.css` changes. The card at `public/og.png` is a
+raster baked from the **light** (`:root`) tokens, so the tokens gain a new role
+(the social card) with unchanged values:
+
+| Token               | Light (`:root`)  | Hex used in card | Role in the card                         |
+| ------------------- | ---------------- | ---------------- | ---------------------------------------- |
+| `--background`      | `0 0% 100%`      | `#ffffff`        | card body (unchanged)                    |
+| `--foreground`      | `240 10% 3.9%`   | `#09090b`        | wordmark + domain (unchanged)            |
+| `--secondary`       | `240 4.8% 95.9%` | `#f4f4f5`        | footer strip, echoing the header (unchanged) |
+| `--muted`           | `240 5% 90%`     | `#e4e4e7`        | rounded logo tile, like a header pill (unchanged) |
+| `--muted-foreground`| `240 3.8% 46.1%` | `#71717a`        | tagline (unchanged)                      |
+| `--border`          | `240 5.9% 90%`   | `#e4e4e7`        | footer top hairline (unchanged)          |
+
+`.dark` — no changes (the card is a static image; it uses the light palette
+because the site's `defaultTheme` is light). The footer's "100% encrypted" pill
+reuses the `E2EBadge` greens (`green-700` text on `green-500/10`, `green-500/40`
+border ≈ `#15803d` / `#e9f9ef` / `#a7e8bf`).
+
+Card layout (1200×630): logo (`icon.png` artwork) 260px on a 300px `--muted`
+tile with 36px radius at x=80; wordmark "Clipboard Sharing / Online" 80px bold;
+tagline "End-to-end encrypted text / between your devices" 42px medium; a 100px
+`--secondary` footer with the domain (32px semibold) left and the green lock
+pill right. System sans (Segoe UI / Helvetica Neue / Arial).
+
+**2. Component class changes**
+
+- `src/components/header.tsx` — new external `<a>` pill before `EncryptedBadge`,
+  wearing the shared `HEADER_PILL_CLASS` (no new classes): lucide `Github`
+  `size-3.5 shrink-0` + `hidden whitespace-nowrap md:inline` "Open source" label
+  (icon-only on phones, text from `md:` up — the same responsive format as the
+  other pills). `target="_blank" rel="noopener noreferrer"`.
+- `src/app/layout.tsx` — `twitter.card` `summary` → `summary_large_image`;
+  `OG_IMAGE` (`src/lib/site.ts`) `/icon.png` 256×256 → `/og.png` 1200×630.
+
+**Migration to a sibling:** render a 1200×630 PNG from the sibling's own light
+tokens with the layout above (swap the wordmark, tagline and domain), save it as
+`public/og.png`, point the Open Graph / Twitter image at it with accurate
+`width`/`height`, and set `twitter.card: "summary_large_image"`. For the header,
+add an icon-only-on-phones `HEADER_PILL_CLASS` link to the sibling's repo
+(`Github` icon, "Open source" label from `md:`), placed before its privacy pill.

@@ -1,11 +1,16 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   isIndexableDeploy,
   OG_IMAGE,
+  REPO_URL,
+  SITE_AUTHOR,
   SITE_DESCRIPTION,
   SITE_FEATURES,
   SITE_KEYWORDS,
   SITE_NAME,
+  SITE_PUBLISHED,
   SITE_TITLE,
   SITE_URL,
   webApplicationJsonLd,
@@ -28,11 +33,31 @@ describe("site identity", () => {
     expect(SITE_DESCRIPTION.length).toBeLessThanOrEqual(320);
   });
 
-  it("points the social preview image at a root-relative square asset", () => {
+  it("points the social preview image at a root-relative large card", () => {
     // Root-relative so Next resolves it against `metadataBase`.
     expect(OG_IMAGE.url.startsWith("/")).toBe(true);
-    expect(OG_IMAGE.width).toBe(OG_IMAGE.height);
-    expect(OG_IMAGE.alt).toBe(SITE_NAME);
+    // The 1.91:1 size `summary_large_image` / Open Graph render full-width.
+    expect(OG_IMAGE.width).toBe(1200);
+    expect(OG_IMAGE.height).toBe(630);
+    expect(OG_IMAGE.alt.startsWith(SITE_NAME)).toBe(true);
+  });
+
+  it("ships the social preview image in public/ at its declared size", () => {
+    const file = join(process.cwd(), "public", OG_IMAGE.url);
+    expect(existsSync(file)).toBe(true);
+    const png = readFileSync(file);
+    // PNG signature, then the IHDR chunk: width/height are big-endian u32s
+    // at byte offsets 16 and 20.
+    expect(png.subarray(0, 8)).toEqual(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    );
+    expect(png.subarray(12, 16).toString("ascii")).toBe("IHDR");
+    expect(png.readUInt32BE(16)).toBe(OG_IMAGE.width);
+    expect(png.readUInt32BE(20)).toBe(OG_IMAGE.height);
+  });
+
+  it("links the public source repository over https", () => {
+    expect(REPO_URL).toMatch(/^https:\/\/github\.com\//);
   });
 
   it("targets the intended long-tail search phrases", () => {
@@ -67,6 +92,25 @@ describe("webApplicationJsonLd", () => {
     expect(data.name).toBe(SITE_NAME);
     // Crawlers do not resolve relative paths in structured data.
     expect(data.image).toBe(`${SITE_URL}${OG_IMAGE.url}`);
+  });
+
+  it("names its author, language, publish date and subcategory", () => {
+    expect(data.author).toEqual({
+      "@type": "Person",
+      name: SITE_AUTHOR.name,
+      url: SITE_AUTHOR.url,
+    });
+    expect(SITE_AUTHOR.url).toMatch(/^https:\/\//);
+    expect(data.inLanguage).toBe("en");
+    expect(data.datePublished).toBe(SITE_PUBLISHED);
+    // ISO 8601 date (schema.org Date).
+    expect(SITE_PUBLISHED).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(typeof data.applicationSubCategory).toBe("string");
+  });
+
+  it("never claims ratings or reviews it does not have", () => {
+    expect(data).not.toHaveProperty("aggregateRating");
+    expect(data).not.toHaveProperty("review");
   });
 
   it("advertises a free, JSON-serializable offer and feature list", () => {
