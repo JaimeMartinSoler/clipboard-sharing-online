@@ -46,7 +46,7 @@ export default function SecurityPage() {
           <li>
             Each push: a random 96-bit IV from{" "}
             <code>crypto.getRandomValues</code>; the upload is{" "}
-            <code>{"{room_id, ciphertext, iv}"}</code>.
+            <code>{"{roomId, ciphertext, iv, ttlMs}"}</code>.
           </li>
           <li>
             Membership: a 256-bit random bearer token, returned once, held in
@@ -144,23 +144,23 @@ export default function SecurityPage() {
       <ContentSection title="Check it yourself">
         <p>
           Read the{" "}
-          <Link
+          <a
             href={SECURITY_DOC_URL}
             target="_blank"
             rel="noopener noreferrer"
             className={TEXT_LINK_CLASS}
           >
             full threat model
-          </Link>{" "}
+          </a>{" "}
           and the code in the{" "}
-          <Link
+          <a
             href={REPO_URL}
             target="_blank"
             rel="noopener noreferrer"
             className={TEXT_LINK_CLASS}
           >
             repository
-          </Link>
+          </a>
           , then open your browser&apos;s Network tab while you use a room. The
           plain-language version is on{" "}
           <Link href="/how-it-works/" className={TEXT_LINK_CLASS}>

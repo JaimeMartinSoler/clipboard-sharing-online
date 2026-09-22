@@ -17,7 +17,8 @@ export function Header() {
     if (typeof window !== "undefined" && window.location.pathname === "/") {
       e.preventDefault();
       // The homepage scrolls (landing content sits below the app), so bring
-      // the entry view back into view as well.
+      // the entry view back into view — needed when no room is open, since
+      // ClipboardApp only resets the scroll when a room session ends.
       document.querySelector("main")?.scrollTo({ top: 0 });
       window.dispatchEvent(new CustomEvent("cso:home"));
     }

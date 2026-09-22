@@ -11,6 +11,7 @@ import {
   SITE_NAME,
   SITE_TITLE,
   SITE_URL,
+  serializeJsonLd,
   webApplicationJsonLd,
 } from "@/lib/site";
 import "./globals.css";
@@ -84,7 +85,7 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(webApplicationJsonLd()),
+            __html: serializeJsonLd(webApplicationJsonLd()),
           }}
         />
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>

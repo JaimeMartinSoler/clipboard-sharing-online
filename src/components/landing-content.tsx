@@ -211,18 +211,19 @@ export function LandingContent() {
         <p>
           Don&apos;t take our word for any of this. Every line of the app, the
           API and the encryption is public: read it, run it, and open your
-          browser&apos;s Network tab to see that only an opaque id, ciphertext,
-          a nonce and a membership token ever leave the page.
+          browser&apos;s Network tab to see that nothing leaves the page but an
+          opaque room id, ciphertext, its nonce, a membership token and a few
+          room settings — plus Cloudflare&apos;s page-view beacon.
         </p>
         <div className="flex flex-wrap gap-2">
-          <Link
+          <a
             href={REPO_URL}
             target="_blank"
             rel="noopener noreferrer"
             className={buttonVariants({ size: "sm" })}
           >
             <Github /> Source on GitHub
-          </Link>
+          </a>
           <Link
             href="/privacy/"
             className={buttonVariants({ variant: "outline", size: "sm" })}

@@ -72,7 +72,8 @@ export default function HowItWorksPage() {
           When you push, your browser encrypts the text with{" "}
           <strong>AES-GCM-256</strong> using the key from step 1 and a fresh
           random number (a nonce) drawn for every push. Only then does anything
-          go over the network: the room id, the scrambled text and the nonce.
+          go over the network: the room id, the scrambled text and the nonce,
+          with your pass and the expiry setting alongside.
         </p>
         <p>
           AES-GCM also seals the box. If anyone changes even one byte of the
