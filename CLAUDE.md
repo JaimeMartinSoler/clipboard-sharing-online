@@ -166,7 +166,8 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   aesthetic, the single always-on `StatusBanner`
   (`error > warning > info > validated`), on-hover `Hint` tooltips, a visible
   lock-icon "End-to-end encrypted — your password never leaves this browser"
-  badge, a header "100% encrypted" pill badge + About pill (same responsive
+  badge, header "Open source" (GitHub repo) + "100% encrypted" (→ `/privacy`)
+  + About pills (same responsive
   format as `office-tools-online`: icon-only on phones, text from `md:` up),
   a `/privacy` page, and an `/about` page. As a single-tool app, drop the
   multi-tool sidebar/registry scaffolding.
