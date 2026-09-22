@@ -30,7 +30,7 @@ describe("site identity", () => {
 
   it("keeps the meta description within a healthy snippet length", () => {
     expect(SITE_DESCRIPTION.length).toBeGreaterThanOrEqual(70);
-    expect(SITE_DESCRIPTION.length).toBeLessThanOrEqual(320);
+    expect(SITE_DESCRIPTION.length).toBeLessThanOrEqual(160);
   });
 
   it("points the social preview image at a root-relative large card", () => {

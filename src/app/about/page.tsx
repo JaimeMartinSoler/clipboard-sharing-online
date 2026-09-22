@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
+import { pageMetadata } from "@/lib/pages";
 import { REPO_URL } from "@/lib/site";
 
 const OTHER_SITES = [
@@ -21,12 +22,7 @@ const OTHER_SITES = [
   },
 ];
 
-export const metadata: Metadata = {
-  title: "About",
-  description:
-    "About Clipboard Sharing Online — built by Jaime Martín Soler. View the source on GitHub.",
-  alternates: { canonical: "/about/" },
-};
+export const metadata: Metadata = pageMetadata("/about/");
 
 export default function AboutPage() {
   return (

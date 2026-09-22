@@ -16,6 +16,9 @@ export function Header() {
   function handleHomeClick(e: React.MouseEvent<HTMLAnchorElement>) {
     if (typeof window !== "undefined" && window.location.pathname === "/") {
       e.preventDefault();
+      // The homepage scrolls (landing content sits below the app), so bring
+      // the entry view back into view as well.
+      document.querySelector("main")?.scrollTo({ top: 0 });
       window.dispatchEvent(new CustomEvent("cso:home"));
     }
   }

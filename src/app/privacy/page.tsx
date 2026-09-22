@@ -11,13 +11,9 @@ import {
 import type { LucideIcon } from "lucide-react";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { pageMetadata } from "@/lib/pages";
 
-export const metadata: Metadata = {
-  title: "Privacy & Security",
-  description:
-    "How Clipboard Sharing Online keeps your data private: end-to-end encryption in the browser, a zero-knowledge server, private rooms that seal when full, and short-lived storage.",
-  alternates: { canonical: "/privacy/" },
-};
+export const metadata: Metadata = pageMetadata("/privacy/");
 
 function Section({
   icon: Icon,
@@ -182,7 +178,8 @@ export default function PrivacyPage() {
               by a <strong>cleanup cron</strong>.
             </li>
             <li>
-              <strong>Clear</strong> deletes the shared content immediately.
+              The room creator&apos;s <strong>Remove room</strong> deletes the
+              room, its members, and the shared content immediately.
             </li>
           </ul>
         </Section>
@@ -227,8 +224,9 @@ export default function PrivacyPage() {
               wire</strong>.
             </li>
             <li>
-              A strict <strong>Content-Security-Policy</strong> blocks any
-              third-party egress.
+              A strict <strong>Content-Security-Policy</strong> blocks
+              third-party egress — the one exception is the cookieless
+              Cloudflare Web Analytics page-view beacon.
             </li>
           </ul>
         </Section>

@@ -85,7 +85,8 @@ derivation is deterministic and the salt is fixed — see
   (lazy delete on read + a cleanup cron).
 - **Strict CSP.** [`public/_headers`](public/_headers) limits `connect-src` to
   `'self'` (the same-origin API), the explicit same-origin `wss://` hosts for
-  live sync, plus Cloudflare Web Analytics — no third-party egress of any kind.
+  live sync, plus the cookieless Cloudflare Web Analytics beacon — no other
+  third-party egress.
 - **Sealed rooms (defense-in-depth).** A capped, sealable room protects content
   against a *later* password compromise. It is access control on top of the
   encryption, never a substitute — and membership is strictly in-memory, so a
@@ -108,9 +109,14 @@ derivation is deterministic and the salt is fixed — see
 ```
 .                       # package "clipboard-sharing-online": Next.js frontend
 ├─ src/
-│  ├─ app/              # page.tsx (the tool), privacy/, about/, layout.tsx
-│  ├─ components/       # StatusBanner, Hint, ui/* primitives, the tool
-│  └─ lib/              # result.ts, crypto.ts, api.ts, live.ts, debounce.ts, … (+ tests)
+│  ├─ app/              # page.tsx (the tool + landing content below it), the
+│  │                    # content pages (share-text-between-phone-and-pc/,
+│  │                    # online-clipboard/, how-it-works/, security/),
+│  │                    # privacy/, about/, sitemap.ts, layout.tsx
+│  ├─ components/       # StatusBanner, Hint, ui/* primitives, the tool,
+│  │                    # landing/content-page/FAQ/footer blocks
+│  └─ lib/              # result.ts, crypto.ts, api.ts, live.ts, debounce.ts,
+│                       # pages.ts (route registry), faq.ts, … (+ tests)
 ├─ public/_headers      # strict CSP
 └─ worker/              # package "worker": Cloudflare Worker API
    ├─ src/{index,db}.ts # Hono app + D1 queries

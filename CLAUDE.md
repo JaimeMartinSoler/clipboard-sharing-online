@@ -33,8 +33,9 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   (lazy-delete on read + a cleanup cron). Do not add long-lived persistence.
 - **HTTPS only, strict CSP.** `connect-src` allows only `'self'`/the API origin
   (including its explicit same-origin `wss://` hosts for live sync — never a
-  bare `wss:`) and the Cloudflare Web Analytics origin. No third-party egress
-  of any kind.
+  bare `wss:`) and the Cloudflare Web Analytics origin. No other third-party
+  egress of any kind (public copy must name the analytics beacon when it says
+  so).
 - **Bound the blast radius.** Enforce a max ciphertext size and per-IP rate
   limiting on the API. Text only in v1 — no file/blob upload.
 - **Cap is layered on top of crypto, never instead of it.** Membership tokens are
@@ -171,6 +172,21 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   format as `office-tools-online`: icon-only on phones, text from `md:` up),
   a `/privacy` page, and an `/about` page. As a single-tool app, drop the
   multi-tool sidebar/registry scaffolding.
+- **Content pages & SEO.** Every indexable route is registered once in
+  `src/lib/pages.ts` (`PAGES`: path, final `<title>` ≤ 60 chars, description
+  ≤ 160 chars, nav label, sitemap hints). Inner pages export
+  `metadata = pageMetadata("<path>")`; `sitemap.ts` and the site-wide
+  `SiteFooter` (internal links, rendered inside `<main>` after the page) read the
+  same list. `pages.test.ts` / `sitemap.test.ts` enforce uniqueness, lengths, and
+  that sitemap routes ⇔ `page.tsx` files. Landing pages (`/share-text-between-phone-and-pc/`,
+  `/online-clipboard/`, `/how-it-works/`, `/security/`) use the
+  `ContentPage`/`ContentSection`/`StartSharingCta` blocks. **The homepage entry
+  view must stay the only thing above the fold**: `page.tsx` wraps `ClipboardApp`
+  in `min-h-full` (resolved against the fixed-height `<main>`), and
+  `LandingContent` + the footer follow below it. The homepage FAQ and its
+  `FAQPage` JSON-LD are both built from `src/lib/faq.ts` (`faq.test.ts` renders
+  the component and asserts they match). Copy must only claim what the code
+  does — the fixed-salt caveat and the analytics beacon are stated, not hidden.
 - **Entry view** puts the Create/Join buttons on top and tucks the room options
   (Sealed/Open toggle, Terminals, Sharing mode) under a collapsed-by-default
   **Advanced Settings** panel — simple by default, configurable on demand.

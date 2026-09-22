@@ -1,12 +1,13 @@
 import type { MetadataRoute } from "next";
-import { SITE_URL } from "@/lib/site";
+import { PAGES, pageUrl } from "@/lib/pages";
 
 /**
  * `/sitemap.xml`. Generated as a static file by `next build` under
- * `output: "export"`. Lists every indexable route: the app itself, the privacy
- * page, and the about page (which carries the source + outbound links).
- * `trailingSlash: true` in next.config.mjs means the canonical URLs end in a
- * slash — match that here so the sitemap agrees with the canonical tags.
+ * `output: "export"`. Lists every indexable route from the `PAGES` registry
+ * (src/lib/pages.ts) — the same list each page's metadata and the footer's
+ * internal links come from, so the three can't drift. `trailingSlash: true` in
+ * next.config.mjs means the canonical URLs end in a slash; the registry paths
+ * match that so the sitemap agrees with the canonical tags.
  *
  * `lastModified` is intentionally omitted: with no build-time date source it
  * would either be a lie or churn on every deploy. Crawlers fall back to their
@@ -15,21 +16,9 @@ import { SITE_URL } from "@/lib/site";
 export const dynamic = "force-static";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  return [
-    {
-      url: `${SITE_URL}/`,
-      changeFrequency: "monthly",
-      priority: 1,
-    },
-    {
-      url: `${SITE_URL}/privacy/`,
-      changeFrequency: "yearly",
-      priority: 0.5,
-    },
-    {
-      url: `${SITE_URL}/about/`,
-      changeFrequency: "yearly",
-      priority: 0.4,
-    },
-  ];
+  return PAGES.map((page) => ({
+    url: pageUrl(page.path),
+    changeFrequency: page.changeFrequency,
+    priority: page.priority,
+  }));
 }
