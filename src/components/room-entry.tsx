@@ -12,7 +12,7 @@ import {
   RotateCcw,
   Settings,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { PasswordStrengthMeter } from "@/components/password-strength-meter";
 import { PrivacyHighlights } from "@/components/privacy-highlights";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Collapse } from "@/components/ui/collapse";
 import { Select } from "@/components/ui/select";
 import type { SyncMode } from "@/lib/api";
+import { BUTTON_BEAT, FIELD_BEAT, playAnimation } from "@/lib/motion";
 import { estimatePassword } from "@/lib/password-strength";
 import type { PasswordKind } from "@/lib/preferences";
 import { cn } from "@/lib/utils";
@@ -96,6 +97,18 @@ export function RoomEntry({
   const { level } = estimatePassword(password);
   const disabled = level === "none" || level === "weak" || busy !== null;
 
+  // Generating a password can look like a no-op (especially while it's masked
+  // as dots), so the pressed button and the field both give a subtle beat.
+  const passwordRef = useRef<HTMLInputElement>(null);
+  function handleGenerate(
+    kind: PasswordKind,
+    e: React.MouseEvent<HTMLButtonElement>,
+  ) {
+    onGeneratePassword(kind);
+    playAnimation(e.currentTarget, ...BUTTON_BEAT);
+    playAnimation(passwordRef.current, ...FIELD_BEAT);
+  }
+
   return (
     <>
       <div className="flex flex-col gap-3">
@@ -131,7 +144,7 @@ export function RoomEntry({
               size="sm"
               variant="outline"
               className="w-full"
-              onClick={() => onGeneratePassword("simple")}
+              onClick={(e) => handleGenerate("simple", e)}
               title="Generate a short random password that's easy to read aloud or retype"
             >
               <RotateCcw /> Password Simple
@@ -141,7 +154,7 @@ export function RoomEntry({
               size="sm"
               variant="outline"
               className="w-full"
-              onClick={() => onGeneratePassword("safer")}
+              onClick={(e) => handleGenerate("safer", e)}
               title="Generate a long, high-entropy password — share it via the room's link or QR"
             >
               <KeyRound /> Password Safer
@@ -150,6 +163,7 @@ export function RoomEntry({
         </div>
         <div className="relative">
           <Input
+            ref={passwordRef}
             id="password"
             type={showPassword ? "text" : "password"}
             autoComplete="off"

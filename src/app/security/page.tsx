@@ -4,7 +4,6 @@ import Link from "next/link";
 import {
   ContentPage,
   ContentSection,
-  StartSharingCta,
   TEXT_LINK_CLASS,
 } from "@/components/content-page";
 import { pageMetadata } from "@/lib/pages";
@@ -169,10 +168,6 @@ export default function SecurityPage() {
           .
         </p>
       </ContentSection>
-
-      <StartSharingCta heading="Seen enough?">
-        Use a long random password, keep the room private, and let it expire.
-      </StartSharingCta>
     </ContentPage>
   );
 }

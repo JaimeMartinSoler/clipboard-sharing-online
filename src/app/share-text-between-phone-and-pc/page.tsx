@@ -4,7 +4,7 @@ import Link from "next/link";
 import {
   ContentPage,
   ContentSection,
-  StartSharingCta,
+  OpenClipboardButton,
   TEXT_LINK_CLASS,
 } from "@/components/content-page";
 import { pageMetadata } from "@/lib/pages";
@@ -17,26 +17,17 @@ export default function PhoneToPcPage() {
   return (
     <ContentPage
       icon={MonitorSmartphone}
-      title="Share text between your phone and PC"
+      title={
+        <>
+          Share text between your{" "}
+          {/* Portrait phones wrap after "your" so the second line isn't a
+              lone "and PC". */}
+          <br className="sm:hidden" />
+          phone and PC
+        </>
+      }
       lead="The quickest way to get a link, a code or a paragraph from your phone onto your computer — or back again — without installing an app or signing in to anything."
     >
-      <ContentSection title="The workarounds everyone uses">
-        <p>
-          Most of us move text between a phone and a computer the long way
-          round. We email it to ourselves and dig it out of the inbox. We send
-          it to ourselves in a chat app. We paste it into a cloud note and wait
-          for it to sync. Or we give up and retype a 40-character URL with one
-          thumb.
-        </p>
-        <p>
-          Built-in clipboard sync helps, but usually only inside one
-          vendor&apos;s world, with the same account signed in on both sides. The
-          moment your phone and your PC come from different ecosystems — or the
-          PC is a work machine you can&apos;t install things on — you&apos;re
-          back to emailing yourself.
-        </p>
-      </ContentSection>
-
       <ContentSection title="Phone to PC in under a minute">
         <ol className="list-decimal space-y-2 pl-5">
           <li>
@@ -65,6 +56,9 @@ export default function PhoneToPcPage() {
           &ldquo;Simple&rdquo; passwords are six characters, easy to read off one
           screen and type on another.
         </p>
+        <div className="flex justify-center pt-1">
+          <OpenClipboardButton />
+        </div>
       </ContentSection>
 
       <ContentSection title="Any phone, any computer">
@@ -114,11 +108,6 @@ export default function PhoneToPcPage() {
           .
         </p>
       </ContentSection>
-
-      <StartSharingCta heading="Send it from your phone now">
-        Open the clipboard on your computer, press Create room, then scan the
-        QR code with your phone.
-      </StartSharingCta>
     </ContentPage>
   );
 }
