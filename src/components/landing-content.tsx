@@ -100,13 +100,6 @@ export function LandingContent() {
             expires on its own.
           </li>
         </ol>
-        <p>
-          Want the details?{" "}
-          <Link href="/how-it-works/" className={TEXT_LINK_CLASS}>
-            See how it works, step by step
-          </Link>
-          .
-        </p>
       </ContentSection>
 
       <ContentSection
@@ -215,7 +208,7 @@ export function LandingContent() {
           opaque room id, ciphertext, its nonce, a membership token and a few
           room settings — plus Cloudflare&apos;s page-view beacon.
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex justify-center">
           <a
             href={REPO_URL}
             target="_blank"
@@ -224,12 +217,6 @@ export function LandingContent() {
           >
             <Github /> Source on GitHub
           </a>
-          <Link
-            href="/privacy/"
-            className={buttonVariants({ variant: "outline", size: "sm" })}
-          >
-            Privacy &amp; security
-          </Link>
         </div>
       </ContentSection>
     </div>

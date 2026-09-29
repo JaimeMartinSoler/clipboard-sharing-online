@@ -70,7 +70,7 @@ export const SITE_KEYWORDS = [
   "zero-knowledge",
 ];
 
-/** Public source repository — the "Open source" trust link and /about. */
+/** Public source repository — linked from /about, the homepage and /security. */
 export const REPO_URL =
   "https://github.com/JaimeMartinSoler/clipboard-sharing-online";
 

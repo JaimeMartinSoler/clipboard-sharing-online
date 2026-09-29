@@ -163,8 +163,8 @@ export default function SecurityPage() {
           </a>
           , then open your browser&apos;s Network tab while you use a room. The
           plain-language version is on{" "}
-          <Link href="/how-it-works/" className={TEXT_LINK_CLASS}>
-            how it works
+          <Link href="/privacy/" className={TEXT_LINK_CLASS}>
+            the privacy page
           </Link>
           .
         </p>

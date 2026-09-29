@@ -281,3 +281,36 @@ the classes above. If the sibling has a fixed-height shell with a scrolling
 `<main>`, wrap its tool in `min-h-full` before appending below-the-fold content
 so the tool keeps the whole first screen, and render the footer inside `<main>`
 after the page.
+
+### 2026-09-29 — Drop the header "Open source" pill; trim the footer (issue #71 / PR #75)
+
+Goal: a quieter header and footer. The header keeps only "100% encrypted" and
+"About" (reverting the "Open source" pill added in PR #69); the footer lists
+internal pages only, and the homepage "Open source" section keeps a single,
+centered GitHub button. The repo stays linked from `/about`, the homepage and
+`/security`.
+
+**1. Token values** — no `globals.css` changes.
+
+| Mode | Variable | Before | After | Note |
+| ---- | -------- | ------ | ----- | ---- |
+| `:root` / `.dark` | — | — | — | no token touched |
+
+**2. Component class changes**
+
+- `src/components/header.tsx` — removed the external `<a>` "Open source" pill
+  (`HEADER_PILL_CLASS`, `Github` icon) before `EncryptedBadge`; the pill row is
+  now `EncryptedBadge` + About.
+- `src/components/site-footer.tsx` — removed the trailing external "Source on
+  GitHub" `<li>`; the link row is the `PAGES` registry only (Home, Phone to PC,
+  Privacy, Security, About). Classes unchanged.
+- `src/components/landing-content.tsx` — "Open source — check it yourself"
+  button row `flex flex-wrap gap-2` → `flex justify-center`; removed the
+  `buttonVariants({ variant: "outline", size: "sm" })` "Privacy & security"
+  link, leaving the one `buttonVariants({ size: "sm" })` GitHub button.
+- `src/app/privacy/page.tsx` — H1 text "Privacy & Security" → "Privacy" (no
+  class change).
+
+**Migration to a sibling:** if the sibling replayed the 2026-09-22 "Open
+source" header pill, delete that pill. Keep footer link rows to internal pages
+only, and center a lone call-to-action button with `flex justify-center`.

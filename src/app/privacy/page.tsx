@@ -41,7 +41,7 @@ export default function PrivacyPage() {
       <div className="flex items-center justify-center gap-3">
         <Lock className="size-6" />
         <h1 className="text-2xl font-semibold tracking-tight">
-          Privacy &amp; Security
+          Privacy
         </h1>
       </div>
 

@@ -111,8 +111,8 @@ derivation is deterministic and the salt is fixed — see
 ├─ src/
 │  ├─ app/              # page.tsx (the tool + landing content below it), the
 │  │                    # content pages (share-text-between-phone-and-pc/,
-│  │                    # online-clipboard/, how-it-works/, security/),
-│  │                    # privacy/, about/, sitemap.ts, layout.tsx
+│  │                    # security/), privacy/, about/, sitemap.ts,
+│  │                    # layout.tsx
 │  ├─ components/       # StatusBanner, Hint, ui/* primitives, the tool,
 │  │                    # landing/content-page/FAQ/footer blocks
 │  └─ lib/              # result.ts, crypto.ts, api.ts, live.ts, debounce.ts,

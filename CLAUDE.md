@@ -167,8 +167,7 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   aesthetic, the single always-on `StatusBanner`
   (`error > warning > info > validated`), on-hover `Hint` tooltips, a visible
   lock-icon "End-to-end encrypted — your password never leaves this browser"
-  badge, header "Open source" (GitHub repo) + "100% encrypted" (→ `/privacy`)
-  + About pills (same responsive
+  badge, header "100% encrypted" (→ `/privacy`) + About pills (same responsive
   format as `office-tools-online`: icon-only on phones, text from `md:` up),
   a `/privacy` page, and an `/about` page. As a single-tool app, drop the
   multi-tool sidebar/registry scaffolding.
@@ -176,10 +175,10 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   `src/lib/pages.ts` (`PAGES`: path, final `<title>` ≤ 60 chars, description
   ≤ 160 chars, nav label, sitemap hints). Inner pages export
   `metadata = pageMetadata("<path>")`; `sitemap.ts` and the site-wide
-  `SiteFooter` (internal links, rendered inside `<main>` after the page) read the
-  same list. `pages.test.ts` / `sitemap.test.ts` enforce uniqueness, lengths, and
+  `SiteFooter` (internal links only, in `PAGES` order, rendered inside `<main>`
+  after the page) read the same list. `pages.test.ts` / `sitemap.test.ts` enforce uniqueness, lengths, and
   that sitemap routes ⇔ `page.tsx` files. Landing pages (`/share-text-between-phone-and-pc/`,
-  `/online-clipboard/`, `/how-it-works/`, `/security/`) use the
+  `/security/`) use the
   `ContentPage`/`ContentSection`/`StartSharingCta` blocks. **The homepage entry
   view must stay the only thing above the fold**: `page.tsx` wraps `ClipboardApp`
   in `min-h-full` (resolved against the fixed-height `<main>`), and

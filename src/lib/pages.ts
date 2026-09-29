@@ -52,22 +52,13 @@ export const PAGES = [
     priority: 0.8,
   },
   {
-    path: "/online-clipboard/",
-    title: "Online Clipboard — Free, End-to-End Encrypted, No Sign-Up",
+    path: "/privacy/",
+    title: "Privacy · Clipboard Sharing Online",
     description:
-      "A free online clipboard that works in any browser. Your text is encrypted before upload and auto-expires; the server stores only ciphertext.",
-    navLabel: "Online clipboard",
-    changeFrequency: "monthly",
-    priority: 0.8,
-  },
-  {
-    path: "/how-it-works/",
-    title: "How Clipboard Sharing Online Works, Step by Step",
-    description:
-      "From password to encrypted room: how two devices find each other with no account, and how your text is encrypted — explained without jargon.",
-    navLabel: "How it works",
-    changeFrequency: "monthly",
-    priority: 0.7,
+      "How your data stays private: encryption in the browser, a zero-knowledge server, rooms that seal when full, short-lived storage and no cookies.",
+    navLabel: "Privacy",
+    changeFrequency: "yearly",
+    priority: 0.5,
   },
   {
     path: "/security/",
@@ -77,15 +68,6 @@ export const PAGES = [
     navLabel: "Security",
     changeFrequency: "monthly",
     priority: 0.7,
-  },
-  {
-    path: "/privacy/",
-    title: "Privacy & Security · Clipboard Sharing Online",
-    description:
-      "How your data stays private: encryption in the browser, a zero-knowledge server, rooms that seal when full, short-lived storage and no cookies.",
-    navLabel: "Privacy",
-    changeFrequency: "yearly",
-    priority: 0.5,
   },
   {
     path: "/about/",

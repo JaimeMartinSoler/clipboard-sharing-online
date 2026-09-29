@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { PAGES } from "@/lib/pages";
-import { REPO_URL } from "@/lib/site";
 
 /**
  * Site-wide internal link block, rendered at the end of every page's scroll
@@ -23,16 +22,6 @@ export function SiteFooter() {
               </Link>
             </li>
           ))}
-          <li>
-            <a
-              href={REPO_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline-offset-2 hover:text-foreground hover:underline"
-            >
-              Source on GitHub
-            </a>
-          </li>
         </ul>
       </nav>
       <p className="mt-3 text-center text-xs">
