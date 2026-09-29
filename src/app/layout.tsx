@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Header } from "@/components/header";
+import { SiteFooter } from "@/components/site-footer";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import {
@@ -10,6 +11,7 @@ import {
   SITE_NAME,
   SITE_TITLE,
   SITE_URL,
+  serializeJsonLd,
   webApplicationJsonLd,
 } from "@/lib/site";
 import "./globals.css";
@@ -83,7 +85,7 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(webApplicationJsonLd()),
+            __html: serializeJsonLd(webApplicationJsonLd()),
           }}
         />
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
@@ -95,6 +97,10 @@ export default function RootLayout({
                   appears/disappears (e.g. expanding Advanced Settings). */}
               <main className="flex-1 overflow-y-auto p-4 [scrollbar-gutter:stable] md:p-6">
                 {children}
+                {/* Internal links to every page. It follows the page inside
+                    the scroll area, so on `/` it sits below the landing content,
+                    never above the fold. */}
+                <SiteFooter />
               </main>
             </div>
           </TooltipProvider>

@@ -1,11 +1,10 @@
 "use client";
 
-import { Github, Info } from "lucide-react";
+import { Info } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { EncryptedBadge, HEADER_PILL_CLASS } from "@/components/encrypted-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { REPO_URL } from "@/lib/site";
 
 export function Header() {
   // Clicking the title/logo should return to the entry ("main") view. When we're
@@ -16,6 +15,10 @@ export function Header() {
   function handleHomeClick(e: React.MouseEvent<HTMLAnchorElement>) {
     if (typeof window !== "undefined" && window.location.pathname === "/") {
       e.preventDefault();
+      // The homepage scrolls (landing content sits below the app), so bring
+      // the entry view back into view — needed when no room is open, since
+      // ClipboardApp only resets the scroll when a room session ends.
+      document.querySelector("main")?.scrollTo({ top: 0 });
       window.dispatchEvent(new CustomEvent("cso:home"));
     }
   }
@@ -38,21 +41,6 @@ export function Header() {
       </Link>
       <div className="ml-auto flex items-center gap-3">
         <div className="flex shrink-0 items-center gap-2">
-          {/* Trust signal: the code behind the privacy promise is public. Same
-              pill as its neighbours, icon-only on phones. */}
-          <a
-            href={REPO_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Open source — view the code on GitHub"
-            title="Open source — view the code on GitHub"
-            className={HEADER_PILL_CLASS}
-          >
-            <Github className="size-3.5 shrink-0" />
-            <span className="hidden whitespace-nowrap md:inline">
-              Open source
-            </span>
-          </a>
           <EncryptedBadge />
           <Link
             href="/about"

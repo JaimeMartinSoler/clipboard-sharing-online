@@ -230,3 +230,87 @@ tokens with the layout above (swap the wordmark, tagline and domain), save it as
 `width`/`height`, and set `twitter.card: "summary_large_image"`. For the header,
 add an icon-only-on-phones `HEADER_PILL_CLASS` link to the sibling's repo
 (`Github` icon, "Open source" label from `md:`), placed before its privacy pill.
+
+### 2026-09-22 — Content pages, below-the-fold landing content + site footer (issue #71)
+
+Goal: give the site crawlable long-form pages and an internal link structure
+without touching the tool itself. Content reuses the existing panel aesthetic
+(`bg-card` bordered sections, as on `/privacy`); a quiet footer links every
+page. The homepage entry view is pixel-identical above the fold — the new
+content only starts below it.
+
+**1. Token values** — no `globals.css` changes. Existing tokens gain new roles:
+
+| Mode | Variable | Before | After | Note |
+| ---- | -------- | ------ | ----- | ---- |
+| `:root` / `.dark` | `--card` | unchanged | unchanged | now also the content-page / landing / FAQ panels |
+| `:root` / `.dark` | `--muted` | unchanged | unchanged | also the call-to-action panel and the "honest caveat" callout at 50% (`bg-muted/50`) |
+| `:root` / `.dark` | `--border` | unchanged | unchanged | also the footer's top hairline (`border-t`) and the use-case tiles |
+| `:root` / `.dark` | `--muted-foreground` | unchanged | unchanged | body copy of the content sections and the footer links |
+
+**2. Component class changes**
+
+- `src/app/page.tsx` — `ClipboardApp` is now wrapped in `<div className="min-h-full">`
+  (claims the whole first screen of the fixed-height `<main>`), followed by
+  `LandingContent` (`mx-auto w-full max-w-3xl space-y-6 pt-16`).
+- `src/components/content-page.tsx` (new) — `ContentPage`: `article.mx-auto
+  max-w-2xl space-y-6`, centered `size-6` icon + `text-2xl font-semibold
+  tracking-tight` H1, `text-center text-muted-foreground` lead.
+  `ContentSection`: `space-y-2 rounded-lg border bg-card p-4 md:p-6`, H2
+  `text-lg font-semibold tracking-tight` with an optional `size-4` icon, body
+  `space-y-3 text-sm leading-relaxed text-muted-foreground`. `StartSharingCta`:
+  `flex flex-col items-center gap-3 rounded-lg border bg-muted/50 p-6
+  text-center` + a `buttonVariants({ size: "lg" })` link. Inline body links:
+  `font-medium text-foreground underline underline-offset-2
+  hover:text-muted-foreground`.
+- `src/components/faq-section.tsx` (new) — centered `text-xl font-semibold
+  tracking-tight` H2; one `space-y-1.5 rounded-lg border bg-card p-4` card per
+  question (`font-medium` H3, `text-sm leading-relaxed text-muted-foreground`
+  answer), always expanded.
+- `src/components/site-footer.tsx` (new, rendered in `layout.tsx` inside
+  `<main>` after `{children}`) — `mx-auto mt-12 max-w-3xl border-t pt-6 text-sm
+  text-muted-foreground`; links in a centered `flex flex-wrap gap-x-5 gap-y-2`
+  row, `hover:text-foreground hover:underline underline-offset-2`; a `mt-3
+  text-center text-xs` tagline.
+- `src/components/header.tsx` — no class change; the home click also scrolls
+  `<main>` back to the top now that `/` scrolls.
+
+**Migration to a sibling:** no token values to copy. Mirror the three building
+blocks (content section card, muted CTA panel, bordered footer link row) with
+the classes above. If the sibling has a fixed-height shell with a scrolling
+`<main>`, wrap its tool in `min-h-full` before appending below-the-fold content
+so the tool keeps the whole first screen, and render the footer inside `<main>`
+after the page.
+
+### 2026-09-29 — Drop the header "Open source" pill; trim the footer (issue #71 / PR #75)
+
+Goal: a quieter header and footer. The header keeps only "100% encrypted" and
+"About" (reverting the "Open source" pill added in PR #69); the footer lists
+internal pages only, and the homepage "Open source" section keeps a single,
+centered GitHub button. The repo stays linked from `/about`, the homepage and
+`/security`.
+
+**1. Token values** — no `globals.css` changes.
+
+| Mode | Variable | Before | After | Note |
+| ---- | -------- | ------ | ----- | ---- |
+| `:root` / `.dark` | — | — | — | no token touched |
+
+**2. Component class changes**
+
+- `src/components/header.tsx` — removed the external `<a>` "Open source" pill
+  (`HEADER_PILL_CLASS`, `Github` icon) before `EncryptedBadge`; the pill row is
+  now `EncryptedBadge` + About.
+- `src/components/site-footer.tsx` — removed the trailing external "Source on
+  GitHub" `<li>`; the link row is the `PAGES` registry only (Home, Phone to PC,
+  Privacy, Security, About). Classes unchanged.
+- `src/components/landing-content.tsx` — "Open source — check it yourself"
+  button row `flex flex-wrap gap-2` → `flex justify-center`; removed the
+  `buttonVariants({ variant: "outline", size: "sm" })` "Privacy & security"
+  link, leaving the one `buttonVariants({ size: "sm" })` GitHub button.
+- `src/app/privacy/page.tsx` — H1 text "Privacy & Security" → "Privacy" (no
+  class change).
+
+**Migration to a sibling:** if the sibling replayed the 2026-09-22 "Open
+source" header pill, delete that pill. Keep footer link rows to internal pages
+only, and center a lone call-to-action button with `flex justify-center`.

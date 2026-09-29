@@ -597,6 +597,20 @@ export function ClipboardApp() {
     }
   }, [session]);
 
+  // Leaving a room by any path (Back, header, Leave, revoke, expiry) scrolls
+  // `<main>` back to the top: the homepage scrolls (landing content sits below
+  // the app), so a room scrolled far down would otherwise land the user on the
+  // landing content instead of the entry view.
+  const hadSession = useRef(false);
+  useEffect(() => {
+    if (session) {
+      hadSession.current = true;
+    } else if (hadSession.current) {
+      hadSession.current = false;
+      document.querySelector("main")?.scrollTo({ top: 0 });
+    }
+  }, [session]);
+
   // Back button: pop returns us to the entry view rather than off-site.
   useEffect(() => {
     if (typeof window === "undefined") return;

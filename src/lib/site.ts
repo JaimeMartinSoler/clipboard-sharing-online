@@ -39,12 +39,13 @@ export const SITE_INDEXABLE = isIndexableDeploy(process.env.GITHUB_REF_NAME);
 /**
  * The meta description / OpenGraph description. Written for a search snippet:
  * it names the concrete devices people search for (phone, PC, laptop, tablet)
- * and states the privacy guarantee that differentiates this tool.
+ * and states the privacy guarantee that differentiates this tool. Kept within
+ * the ~160-char snippet Google shows (pages.test.ts enforces it per route).
  */
 export const SITE_DESCRIPTION =
-  "Free online clipboard to instantly share text between your phone, PC, " +
-  "laptop and tablet. End-to-end encrypted — two devices meet on a single " +
-  "password and the server only ever stores ciphertext it cannot read.";
+  "Free online clipboard: share text between phone, PC, laptop and tablet. " +
+  "End-to-end encrypted — the server only stores ciphertext it cannot read. " +
+  "No sign-up.";
 
 /**
  * Long-tail search phrases we want to rank for. `keywords` carries little
@@ -69,7 +70,7 @@ export const SITE_KEYWORDS = [
   "zero-knowledge",
 ];
 
-/** Public source repository — the "Open source" trust link and /about. */
+/** Public source repository — linked from /about, the homepage and /security. */
 export const REPO_URL =
   "https://github.com/JaimeMartinSoler/clipboard-sharing-online";
 
@@ -110,6 +111,14 @@ export const SITE_FEATURES = [
   "Live sync as you type, or manual push and pull",
   "Ephemeral by default — content auto-expires",
 ];
+
+/**
+ * Serialize JSON-LD for an inline `<script type="application/ld+json">`.
+ * Escapes `<` so no string value can ever close the script element early.
+ */
+export function serializeJsonLd(data: Record<string, unknown>): string {
+  return JSON.stringify(data).replace(/</g, "\\u003c");
+}
 
 /**
  * schema.org JSON-LD describing the app as a free web application, so search

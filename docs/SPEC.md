@@ -49,7 +49,9 @@ ciphertext it has no way to decrypt.
    terminal can choose what an incoming update does to unsaved local edits:
    **overwrite** (default) or **warn** (keep the edits; Pull loads the update).
 6. The shared blob (and the whole room, with its seal and memberships) expires
-   automatically; **Clear** removes the blob immediately.
+   automatically. **Clear** only empties the local text box; the room
+   creator's **Remove room** deletes the room, its members, and the blob
+   immediately.
 
 > **Strict slots (intentional).** Your membership lives only in the page while
 > it's open. If you reload, close the tab, or open a new browser, that slot is
