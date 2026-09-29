@@ -22,7 +22,7 @@ export function ContentPage({
   children,
 }: {
   icon: LucideIcon;
-  title: string;
+  title: ReactNode;
   lead: ReactNode;
   children: ReactNode;
 }) {
@@ -66,25 +66,12 @@ export function ContentSection({
   );
 }
 
-/** The call to action every content page ends on: back to the tool at `/`. */
-export function StartSharingCta({
-  heading = "Ready to move some text?",
-  children,
-}: {
-  heading?: string;
-  children?: ReactNode;
-}) {
+/** The call to action back to the tool at `/`, placed inside a section. */
+export function OpenClipboardButton() {
   return (
-    <section className="flex flex-col items-center gap-3 rounded-lg border bg-muted/50 p-6 text-center">
-      <h2 className="text-lg font-semibold tracking-tight">{heading}</h2>
-      <p className="text-sm text-muted-foreground">
-        {children ??
-          "Open the clipboard, create a room on one device and join it from the other — it takes about ten seconds."}
-      </p>
-      <Link href="/" className={buttonVariants({ size: "lg" })}>
-        Open the clipboard
-        <ArrowRight className="size-4" />
-      </Link>
-    </section>
+    <Link href="/" className={buttonVariants({ size: "lg" })}>
+      Open the clipboard
+      <ArrowRight className="size-4" />
+    </Link>
   );
 }
