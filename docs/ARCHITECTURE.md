@@ -100,7 +100,10 @@ The **Share options** (a `ShareControls` section shown below the editor to
 **every** member — creator and joiners alike, so anyone can invite another
 device or re-copy the password) offer **Copy password** (to clipboard, without
 revealing it), **Show password** (reveal inline), **Share link**, and **Show
-QR**, each rendered with the icon pinned left and the label centered. A short
+QR**, each rendered with the icon pinned left and the label centered —
+primary-filled, with the two Show toggles flipping to `outline` while their
+reveal is open. The creator's copy plays a one-time double pump on entering the
+room they just created, to point at the next step (joiners don't). A short
 warning under the heading reminds that anyone with the password or link can
 join. The **Share link** button opens the native share sheet
 (`navigator.share` → WhatsApp, Messages, Copy, …) on mobile and falls back to
@@ -112,7 +115,13 @@ beaconed by Cloudflare Web Analytics. `base64url` is transport encoding only
 (reversible): **sharing the link is sharing decryption ability**, exactly the
 intent. On load the app reads `location.hash`, auto-joins (`mode:"join"`), and
 immediately **scrubs the fragment** from the address bar (`history.replaceState`)
-so it doesn't linger in history or on screen. The QR is produced by a vendored,
+so it doesn't linger in history or on screen. A **first-time visitor** (no
+`cso.visited.v1` localStorage marker — a non-secret "1", read/written via the
+total, corruption-safe helpers in `src/lib/preferences.ts`) who arrives this way
+also sees a one-line, dismissible explainer above the editor: what the site is,
+that text is end-to-end encrypted, and a "How it works" link that opens in a new
+tab (leaving the tab would drop the in-memory membership token). It renders
+alongside the join, never before it; a returning visitor sees nothing. The QR is produced by a vendored,
 dependency-free encoder (`src/lib/qr.ts`) rendered as **inline SVG** — no network,
 CSP-safe. See `src/lib/room-link.ts` and `docs/SECURITY.md`.
 

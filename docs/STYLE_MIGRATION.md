@@ -380,3 +380,54 @@ component (with `src/lib/route-scroll.ts`) after its page content. Put a single 
 inside the relevant section rather than a separate panel. For any control whose
 effect can be invisible, copy `src/lib/motion.ts` and play the two beats on
 the control and its target field.
+
+### 2026-10-03 — Filled share buttons, creator attention pump, no-wrap editor, first-visit note (issue #72)
+
+Goal: make "create → share → done" the obvious path. The Share options become
+the room's primary-filled call to action (the creator's copy pumps twice on
+arrival), the joiner's **Leave** reads as the same irreversible exit as the
+creator's **Remove room**, Push/Clear grey out when they would do nothing, and
+the editor keeps long lines intact. A share-link recipient on their first visit
+gets a one-line note on what the site is.
+
+**1. Token values** — no `globals.css` changes. Existing tokens gain new roles:
+
+| Mode | Variable | Before | After | Note |
+| ---- | -------- | ------ | ----- | ---- |
+| `:root` / `.dark` | `--primary` / `--primary-foreground` | unchanged | unchanged | now also the fill of the four Share-options buttons |
+| `:root` / `.dark` | `--destructive` / `--destructive-foreground` | unchanged | unchanged | now also the joiner's **Leave** button |
+| `:root` / `.dark` | `--muted` | unchanged | unchanged | also the `bg-muted/50` surface of the first-visit explainer (same as the info banner) |
+
+**2. Component class changes**
+
+- `src/components/share-controls.tsx` — `ShareButton` `variant="outline"` →
+  `variant={revealed ? "outline" : "default"}`: all four buttons are filled;
+  Show password / Show QR flip to `outline` while their reveal is open (label
+  "Hide …") and back when it closes. The `Share options` `<h2>` and each button
+  carry `data-attention`; with `attention` (creator only) they play
+  `ATTENTION_BEAT` once on mount.
+- `src/lib/motion.ts` — new `ATTENTION_BEAT`: `BUTTON_BEAT`'s pump without the
+  background tint (`scale(0.95)` at 30%, `scale(1.03)` at 65%, 380 ms
+  ease-out), `iterations: 2`, `delay: 300`. Skipped under
+  `prefers-reduced-motion`.
+- `src/components/clipboard-app.tsx` — joiner **Leave** `variant="outline"` →
+  `variant="destructive"` (same as `CreatorPanel`'s Remove room).
+- `src/components/room-editor.tsx` — textarea `min-h-60` → `min-h-54
+  sm:min-h-60` (one text line / 10% shorter on portrait phones so the Share
+  options fit the same screen), plus `wrap="off" overflow-x-auto
+  whitespace-pre` (horizontal scroll instead of soft-wrap). Push is disabled
+  while the text equals the last-synced copy (not "Sync now"); Clear is
+  disabled while the box is empty — the existing `disabled:opacity-50` style.
+- `src/components/first-visit-explainer.tsx` (new) — `flex items-start gap-2
+  rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground` row:
+  lock icon, one sentence with a `TEXT_LINK_CLASS` "How it works ↗" link
+  (`target="_blank"`), and an `X` dismiss button (`hover:text-foreground`).
+
+**Migration to a sibling:** no token values to copy. For a panel whose buttons
+are the next step, use the filled `default` button variant and swap a
+Show/Hide toggle to `outline` while its reveal is open. To point a user at
+them once, copy `ATTENTION_BEAT` from `src/lib/motion.ts` and play it on mount
+on the heading and buttons. Give an irreversible "leave" action the
+`destructive` variant. For a code/text editor textarea, add `wrap="off"
+overflow-x-auto whitespace-pre`. A one-time note uses the info-banner surface
+(`bg-muted/50`, `border`, `text-muted-foreground`) with a dismiss `X`.
