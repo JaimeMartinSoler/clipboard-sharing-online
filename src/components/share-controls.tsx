@@ -8,6 +8,7 @@ import { Collapse } from "@/components/ui/collapse";
 import { ATTENTION_BEAT, playAnimation } from "@/lib/motion";
 import { qrSvg } from "@/lib/qr";
 import { buildShareUrl } from "@/lib/room-link";
+import { cn } from "@/lib/utils";
 
 /**
  * Password + link sharing, available to every member (creator and joiners) so
@@ -131,6 +132,7 @@ export function ShareControls({
             label={passwordCopied ? "Copied" : "Copy password"}
             onClick={() => void copy(password, setPasswordCopied)}
             disabled={!password}
+            done={passwordCopied}
           />
           <ShareButton
             hint="Reveal the room password here so you can read it aloud or retype it on another device."
@@ -193,6 +195,9 @@ export function ShareControls({
  * so the four buttons read as a tidy column of centered labels. Filled
  * (`default`) normally; `revealed` (a Show toggle whose reveal is open) swaps
  * it to `outline`, so the colors invert along with the Show/Hide label.
+ * `done` (a one-shot action that just succeeded, e.g. "Copied") borrows the
+ * disabled look for its brief confirmation — without the real `disabled`
+ * attribute, which would drop keyboard focus from the button.
  */
 function ShareButton({
   hint,
@@ -201,6 +206,7 @@ function ShareButton({
   onClick,
   disabled,
   revealed,
+  done = false,
 }: {
   hint: string;
   icon: React.ReactNode;
@@ -209,6 +215,8 @@ function ShareButton({
   disabled?: boolean;
   /** A Show/Hide toggle whose reveal is open — the label already says so. */
   revealed?: boolean;
+  /** The action just succeeded: show it greyed out like a disabled button. */
+  done?: boolean;
 }) {
   return (
     <Hint text={hint}>
@@ -216,7 +224,11 @@ function ShareButton({
         data-attention
         size="sm"
         variant={revealed ? "outline" : "default"}
-        className="w-full justify-start gap-2"
+        className={cn(
+          "w-full justify-start gap-2",
+          done && "pointer-events-none opacity-50",
+        )}
+        aria-disabled={done || undefined}
         onClick={onClick}
         disabled={disabled}
       >

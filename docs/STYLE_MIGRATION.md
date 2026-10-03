@@ -405,11 +405,15 @@ gets a one-line note on what the site is.
   Show password / Show QR flip to `outline` while their reveal is open (label
   "Hide …") and back when it closes. The `Share options` `<h2>` and each button
   carry `data-attention`; with `attention` (creator only) they play
-  `ATTENTION_BEAT` once on mount.
-- `src/lib/motion.ts` — new `ATTENTION_BEAT`: `BUTTON_BEAT`'s pump without the
-  background tint (`scale(0.95)` at 30%, `scale(1.03)` at 65%, 380 ms
-  ease-out), `iterations: 2`, `delay: 300`. Skipped under
-  `prefers-reduced-motion`.
+  `ATTENTION_BEAT` once on mount. While **Copy password** shows its "Copied"
+  confirmation it takes the disabled look — `w-full justify-start gap-2` →
+  `w-full justify-start gap-2 pointer-events-none opacity-50` plus
+  `aria-disabled` (not the real `disabled` attribute, which would drop focus).
+- `src/lib/motion.ts` — new `ATTENTION_BEAT`: `BUTTON_BEAT`'s pump at 3× the
+  amplitude and without the background tint (`scale(0.85)` at 30%,
+  `scale(1.09)` at 65%, 380 ms ease-out), `iterations: 2`, `delay: 300`. At the
+  peak, adjacent buttons briefly overlap a few px across their `gap-2`
+  (transforms never reflow). Skipped under `prefers-reduced-motion`.
 - `src/components/clipboard-app.tsx` — joiner **Leave** `variant="outline"` →
   `variant="destructive"` (same as `CreatorPanel`'s Remove room).
 - `src/components/room-editor.tsx` — textarea `min-h-60` → `min-h-54
@@ -427,7 +431,8 @@ gets a one-line note on what the site is.
 are the next step, use the filled `default` button variant and swap a
 Show/Hide toggle to `outline` while its reveal is open. To point a user at
 them once, copy `ATTENTION_BEAT` from `src/lib/motion.ts` and play it on mount
-on the heading and buttons. Give an irreversible "leave" action the
+on the heading and buttons. Grey out a one-shot button's brief "Copied"
+confirmation with `pointer-events-none opacity-50` + `aria-disabled`. Give an irreversible "leave" action the
 `destructive` variant. For a code/text editor textarea, add `wrap="off"
 overflow-x-auto whitespace-pre`. A one-time note uses the info-banner surface
 (`bg-muted/50`, `border`, `text-muted-foreground`) with a dismiss `X`.
