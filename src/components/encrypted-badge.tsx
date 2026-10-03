@@ -20,7 +20,7 @@ export const HEADER_PILL_CLASS =
 export function EncryptedBadge({ className }: { className?: string }) {
   return (
     <Link
-      href="/privacy"
+      href="/privacy/"
       aria-label="100% encrypted — your password never leaves this browser"
       title="100% encrypted — your password never leaves this browser"
       className={cn(HEADER_PILL_CLASS, className)}

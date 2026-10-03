@@ -179,7 +179,12 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   after the page) read the same list. `pages.test.ts` / `sitemap.test.ts` enforce uniqueness, lengths, and
   that sitemap routes ⇔ `page.tsx` files. Landing pages (`/share-text-between-phone-and-pc/`,
   `/security/`) use the
-  `ContentPage`/`ContentSection`/`StartSharingCta` blocks. **The homepage entry
+  `ContentPage`/`ContentSection`/`OpenClipboardButton` blocks. Pages scroll
+  inside `<main>`, not the document, so the shell is `h-dvh overflow-clip`
+  (never `overflow-hidden`, which Next's navigation `scrollIntoView()` can
+  scroll, hiding the header; `.app-shell` in `globals.css` adds `@supports`
+  fallbacks to `100vh`/`overflow: hidden` for older Safari) and
+  `RouteScrollReset` starts every route at the top (except `#fragment` links). **The homepage entry
   view must stay the only thing above the fold**: `page.tsx` wraps `ClipboardApp`
   in `min-h-full` (resolved against the fixed-height `<main>`), and
   `LandingContent` + the footer follow below it. The homepage FAQ and its
