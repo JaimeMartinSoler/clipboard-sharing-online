@@ -1,10 +1,11 @@
 "use client";
 
 import { Check, Copy, Eye, EyeOff, QrCode, Share2 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Hint } from "@/components/hint";
 import { Button } from "@/components/ui/button";
 import { Collapse } from "@/components/ui/collapse";
+import { ATTENTION_BEAT, playAnimation } from "@/lib/motion";
 import { qrSvg } from "@/lib/qr";
 import { buildShareUrl } from "@/lib/room-link";
 
@@ -22,12 +23,37 @@ import { buildShareUrl } from "@/lib/room-link";
  * - **Share link** — opens the native share sheet on mobile (WhatsApp, copy,
  *   …), falling back to copying the auto-join link on desktop.
  * - **Show QR** — renders a scannable QR of the same link for phones.
+ *
+ * The buttons are primary-filled to read as the next step after creating a
+ * room; the two reveal toggles flip to the outline style while their reveal is
+ * open (labelled "Hide …"), and back when it closes. With `attention` (the
+ * creator, on entering the room they just made) the heading and all four
+ * buttons play a double pump once on mount — joiners get no animation.
  */
-export function ShareControls({ password }: { password: string }) {
+export function ShareControls({
+  password,
+  attention = false,
+}: {
+  password: string;
+  /** Play the one-time double pump on mount (creator only). */
+  attention?: boolean;
+}) {
   const [showQr, setShowQr] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [passwordCopied, setPasswordCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+
+  // Once, on mount: the creator's room just opened, so pump the heading and
+  // every share button (each marked `data-attention`). Mount-only by design —
+  // later re-renders (or toggling `attention`) never replay it.
+  const sectionRef = useRef<HTMLElement>(null);
+  const attentionOnMount = useRef(attention);
+  useEffect(() => {
+    if (!attentionOnMount.current) return;
+    sectionRef.current
+      ?.querySelectorAll<HTMLElement>("[data-attention]")
+      .forEach((el) => playAnimation(el, ...ATTENTION_BEAT));
+  }, []);
 
   const shareUrl = useMemo(() => {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -79,10 +105,15 @@ export function ShareControls({ password }: { password: string }) {
     // No parent `gap-*`: the reveals below animate open, so their spacing lives
     // inside the Collapse (a `mt-3` that eases in with the height) — otherwise a
     // zero-height collapsed reveal would still leave a flex gap behind it.
-    <section className="flex flex-col rounded-lg border bg-card p-4">
+    <section
+      ref={sectionRef}
+      className="flex flex-col rounded-lg border bg-card p-4"
+    >
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-sm font-medium">Share options</h2>
+          <h2 data-attention className="text-sm font-medium">
+            Share options
+          </h2>
         </div>
         <p className="text-xs text-muted-foreground">
           Invite another device to this room. <strong>Anyone with the password
@@ -106,6 +137,7 @@ export function ShareControls({ password }: { password: string }) {
             icon={showPassword ? <EyeOff /> : <Eye />}
             label={showPassword ? "Hide password" : "Show password"}
             onClick={() => setShowPassword((v) => !v)}
+            revealed={showPassword}
             disabled={!password}
           />
           <ShareButton
@@ -120,6 +152,7 @@ export function ShareControls({ password }: { password: string }) {
             icon={<QrCode />}
             label={showQr ? "Hide QR" : "Show QR"}
             onClick={() => setShowQr((v) => !v)}
+            revealed={showQr}
             disabled={!shareUrl}
           />
         </div>
@@ -157,7 +190,9 @@ export function ShareControls({ password }: { password: string }) {
 /**
  * A Share-options button: the icon is pinned to the left and the label is
  * centered in the remaining width (`justify-start` + a flex-1 centered label),
- * so the four buttons read as a tidy column of centered labels.
+ * so the four buttons read as a tidy column of centered labels. Filled
+ * (`default`) normally; `revealed` (a Show toggle whose reveal is open) swaps
+ * it to `outline`, so the colors invert along with the Show/Hide label.
  */
 function ShareButton({
   hint,
@@ -165,18 +200,22 @@ function ShareButton({
   label,
   onClick,
   disabled,
+  revealed,
 }: {
   hint: string;
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  /** A Show/Hide toggle whose reveal is open — the label already says so. */
+  revealed?: boolean;
 }) {
   return (
     <Hint text={hint}>
       <Button
+        data-attention
         size="sm"
-        variant="outline"
+        variant={revealed ? "outline" : "default"}
         className="w-full justify-start gap-2"
         onClick={onClick}
         disabled={disabled}

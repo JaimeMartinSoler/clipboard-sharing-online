@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  ATTENTION_BEAT,
   BUTTON_BEAT,
   FIELD_BEAT,
   playAnimation,
@@ -59,5 +60,17 @@ describe("playAnimation", () => {
       throw new Error("bad keyframe");
     });
     expect(playAnimation({ animate }, ...BUTTON_BEAT, noMotionPref)).toBe(false);
+  });
+});
+
+describe("ATTENTION_BEAT", () => {
+  it("is BUTTON_BEAT's pump, played twice, without a background tint", () => {
+    const [keyframes, options] = ATTENTION_BEAT;
+    expect(options.iterations).toBe(2);
+    expect(options.duration).toBe(BUTTON_BEAT[1].duration);
+    expect(keyframes.map((k) => k.transform)).toEqual(
+      BUTTON_BEAT[0].map((k) => k.transform),
+    );
+    expect(keyframes.some((k) => "backgroundColor" in k)).toBe(false);
   });
 });

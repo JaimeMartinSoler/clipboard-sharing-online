@@ -74,3 +74,18 @@ export const FIELD_BEAT: [Keyframe[], KeyframeAnimationOptions] = [
   ],
   { duration: 480, easing: "ease-out" },
 ];
+
+/**
+ * A double "pump" that draws the creator's eye to the Share options on entering
+ * a room they just created: BUTTON_BEAT's press-and-rebound, played twice after
+ * a short delay so it lands once the room view has painted. No background tint
+ * — the share buttons are primary-filled, where an accent flash would wash out
+ * their label for a frame.
+ */
+export const ATTENTION_BEAT: [Keyframe[], KeyframeAnimationOptions] = [
+  [
+    { offset: 0.3, transform: "scale(0.95)" },
+    { offset: 0.65, transform: "scale(1.03)" },
+  ],
+  { duration: 380, easing: "ease-out", iterations: 2, delay: 300 },
+];

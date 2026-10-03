@@ -4,6 +4,7 @@ import { LogOut } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CreatorPanel } from "@/components/creator-panel";
 import { E2EBadge } from "@/components/e2e-badge";
+import { FirstVisitExplainer } from "@/components/first-visit-explainer";
 import { Hint } from "@/components/hint";
 import { PrivacyHighlights } from "@/components/privacy-highlights";
 import { RoomEditor } from "@/components/room-editor";
@@ -30,8 +31,10 @@ import {
   generateSimplePassword,
 } from "@/lib/password-gen";
 import {
+  hasVisitedBefore,
   loadPreferences,
   type PasswordKind,
+  recordVisit,
   savePreferences,
 } from "@/lib/preferences";
 import { decodePasswordHash } from "@/lib/room-link";
@@ -83,7 +86,9 @@ function hasInboundShareLink(): boolean {
  *
  * The password is held in memory only (for Share/QR), never persisted. An
  * inbound `#p=…` share link auto-joins on mount and is then scrubbed from the
- * address bar so it doesn't linger in history or on screen.
+ * address bar so it doesn't linger in history or on screen. A first-time
+ * visitor arriving that way also gets a one-line, dismissible explainer of
+ * what the site is (they never saw the homepage); a returning one sees nothing.
  *
  * Live modes (`push`/`typing`) additionally hold a WebSocket via useLiveRoom:
  * incoming broadcasts are decrypted locally and applied to the textarea,
@@ -95,8 +100,8 @@ export function ClipboardApp() {
   // matches the first client render; the stored prefs are applied in a mount
   // effect (post-hydration) to avoid a mismatch.
   const [password, setPassword] = useState("");
-  const [passwordKind, setPasswordKind] = useState<PasswordKind>("simple");
-  const [showPassword, setShowPassword] = useState(true);
+  const [passwordKind, setPasswordKind] = useState<PasswordKind>("safer");
+  const [showPassword, setShowPassword] = useState(false);
   // Sealed (bounded, seals when full) vs open (unlimited, never seals). Open
   // rooms are requested with capacity 0.
   const [sealedRoom, setSealedRoom] = useState(true);
@@ -115,6 +120,9 @@ export function ClipboardApp() {
   // Set synchronously when arriving via a share link so the entry view never
   // flashes before the auto-join resolves.
   const [autoJoining, setAutoJoining] = useState(hasInboundShareLink);
+  // First-time visitor who arrived via a share link: show the explainer in the
+  // room (decided once on mount, before this visit is recorded).
+  const [showExplainer, setShowExplainer] = useState(false);
   const [status, setStatus] = useState<Status>({
     kind: "info",
     message: "",
@@ -139,8 +147,17 @@ export function ClipboardApp() {
   conflictPolicyRef.current = conflictPolicy;
   const ttlMsRef = useRef(ttlMs);
   ttlMsRef.current = ttlMs;
-  /** The text as last agreed with the server (pushed, pulled, or applied). */
+  /**
+   * The text as last agreed with the server (pushed, pulled, or applied). The
+   * ref serves async callbacks; the state mirror re-renders the editor so Push
+   * can disable when there is nothing new to send. Always set via markSynced.
+   */
   const lastSyncedRef = useRef("");
+  const [lastSynced, setLastSynced] = useState("");
+  const markSynced = useCallback((value: string) => {
+    lastSyncedRef.current = value;
+    setLastSynced(value);
+  }, []);
 
   // The room view pushes one history entry so Back (and the header click, which
   // routes through it) returns to the entry view instead of leaving the site.
@@ -186,6 +203,7 @@ export function ClipboardApp() {
     popRoomHistory();
     setSession(null);
     setExpiresAt(null);
+    setShowExplainer(false);
   }, [popRoomHistory]);
 
   /** Replace the text box and reset its undo/redo history (join/leave/nuke). */
@@ -256,7 +274,7 @@ export function ClipboardApp() {
           syncMode: roomSyncMode,
         });
         resetText("");
-        lastSyncedRef.current = "";
+        markSynced("");
         setExpiresAt(null);
         // Joiners see no room-status detail (slot counts / sealed state); that
         // is creator-only information. The creator gets the full picture.
@@ -283,7 +301,7 @@ export function ClipboardApp() {
         setBusy(null);
       }
     },
-    [capacity, sealedRoom, syncMode, resetText],
+    [capacity, sealedRoom, syncMode, resetText, markSynced],
   );
 
   // Auto-join from an inbound `#p=…` share link, exactly once.
@@ -292,6 +310,9 @@ export function ClipboardApp() {
     if (didAuto.current) return;
     didAuto.current = true;
     if (typeof window === "undefined") return;
+    // Read before recording: only a visitor with no prior visit is "first".
+    const firstVisit = !hasVisitedBefore();
+    recordVisit();
     const hash = window.location.hash;
     const pw = decodePasswordHash(hash);
     if (hash) {
@@ -304,6 +325,7 @@ export function ClipboardApp() {
     }
     if (pw) {
       setPassword(pw);
+      setShowExplainer(firstVisit);
       void allocate("join", pw).finally(() => setAutoJoining(false));
     } else {
       setAutoJoining(false);
@@ -389,7 +411,7 @@ export function ClipboardApp() {
         setStatus({ kind: "error", message: slotLostCopy(res.error) });
         return;
       }
-      lastSyncedRef.current = value;
+      markSynced(value);
       setExpiresAt(res.value.expiresAt);
       setNow(Date.now());
       if (!opts.silent) {
@@ -403,7 +425,7 @@ export function ClipboardApp() {
     } finally {
       if (!opts.silent) setBusy(null);
     }
-  }, [dropSession]);
+  }, [dropSession, markSynced]);
 
   const doPushRef = useRef(doPush);
   doPushRef.current = doPush;
@@ -467,11 +489,11 @@ export function ClipboardApp() {
       return;
     }
     commitText(dec.value);
-    lastSyncedRef.current = dec.value;
+    markSynced(dec.value);
     setExpiresAt(update.expiresAt);
     setNow(Date.now());
     setStatus({ kind: "info", message: "Live update received." });
-  }, [commitText]);
+  }, [commitText, markSynced]);
 
   const liveStatus = useLiveRoom(session, {
     // Catch up on whatever was pushed before/while we were disconnected.
@@ -541,14 +563,14 @@ export function ClipboardApp() {
       // An explicit Pull is the user asking for the server's copy: it always
       // applies, clearing any "new content received" warning state.
       commitText(dec.value);
-      lastSyncedRef.current = dec.value;
+      markSynced(dec.value);
       setExpiresAt(res.value.expiresAt);
       setNow(Date.now());
       setStatus({ kind: "validated", message: "Pulled & decrypted." });
     } finally {
       setBusy(null);
     }
-  }, [session, dropSession, commitText]);
+  }, [session, dropSession, commitText, markSynced]);
 
   // Clear is local-only: it empties the text box here without touching the
   // server. The shared blob is only replaced/removed via Push. (In typing
@@ -681,11 +703,12 @@ export function ClipboardApp() {
             </h1>
             {/* Only a joiner may Leave (forfeiting their slot). The creator
                 cannot — leaving would orphan the room with no way back in — so
-                they use "Remove room" in the creator panel instead. */}
+                they use "Remove room" in the creator panel instead. Styled like
+                that button: both are the irreversible way out of the room. */}
             <div className="justify-self-end">
               {session.role === "joiner" && (
                 <Hint text="Leave the room. Your slot is forfeited but still counts against the cap until the room expires.">
-                  <Button variant="outline" size="sm" onClick={handleLeave}>
+                  <Button variant="destructive" size="sm" onClick={handleLeave}>
                     <LogOut /> Leave
                   </Button>
                 </Hint>
@@ -703,6 +726,10 @@ export function ClipboardApp() {
             )}
           </StatusBanner>
 
+          {showExplainer && (
+            <FirstVisitExplainer onDismiss={() => setShowExplainer(false)} />
+          )}
+
           <RoomEditor
             text={text}
             onTextChange={handleTextChange}
@@ -716,6 +743,7 @@ export function ClipboardApp() {
             onPush={handlePush}
             onPull={handlePull}
             onClear={handleClear}
+            hasUnsyncedChanges={text !== lastSynced}
             canSetExpiry={session.role === "creator"}
             syncMode={session.syncMode}
             liveStatus={liveStatus}
@@ -725,7 +753,10 @@ export function ClipboardApp() {
 
           {/* Sharing is available to every member; room administration (roster
               + Remove room) stays creator-only. Both live below the editor. */}
-          <ShareControls password={password} />
+          <ShareControls
+            password={password}
+            attention={session.role === "creator"}
+          />
 
           {session.role === "creator" && (
             <CreatorPanel
