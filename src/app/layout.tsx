@@ -95,8 +95,9 @@ export default function RootLayout({
                 making the document itself scrollable), and `overflow-clip`,
                 unlike `overflow-hidden`, is not a scroll container — so a
                 navigation's `scrollIntoView()` can never scroll the header
-                out of view. */}
-            <div className="flex h-dvh flex-col overflow-clip">
+                out of view. `app-shell` adds `100vh`/`overflow: hidden`
+                fallbacks for browsers without them (globals.css). */}
+            <div className="app-shell flex h-dvh flex-col overflow-clip">
               <Header />
               {/* `scrollbar-gutter: stable` always reserves the scrollbar's
                   space, so content never shifts horizontally when a scrollbar

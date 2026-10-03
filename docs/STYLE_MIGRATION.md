@@ -335,20 +335,29 @@ never looks like a no-op when the password is masked.
 **2. Component class changes**
 
 - `src/app/layout.tsx` — shell `flex h-screen flex-col overflow-hidden` →
-  `flex h-dvh flex-col overflow-clip`. `overflow-hidden` is still a
+  `app-shell flex h-dvh flex-col overflow-clip`. `overflow-hidden` is still a
   (programmatic) scroll container, so Next's navigation `scrollIntoView()`
   could scroll the header out of view; `overflow-clip` cannot scroll, and
   `h-dvh` stops phones' overshooting `100vh` from making the document scroll.
   Also renders a new `RouteScrollReset` after `SiteFooter` inside `<main>`.
-- `src/components/route-scroll-reset.tsx` (new, no markup) — on every pathname
-  change, a layout effect scrolls `<main>` and the window to `top: 0`.
+- `src/app/globals.css` — new `.app-shell` fallbacks for browsers without
+  `dvh` (< iOS 15.4) or `overflow: clip` (< Safari 16): `@supports not (height:
+  100dvh)` → `height: 100vh`, `@supports not (overflow: clip)` → `overflow:
+  hidden`. (`@supports` rather than a duplicated declaration, so a CSS minifier
+  can't collapse the fallback.)
+- `src/components/route-scroll-reset.tsx` (new, no markup) +
+  `src/lib/route-scroll.ts` (new) — on every pathname change, a layout effect
+  scrolls `<main>` and the window to `top: 0`, unless the URL has a
+  `#fragment` (Next already scrolled to it).
 - `src/components/content-page.tsx` — `StartSharingCta` (`flex flex-col
   items-center gap-3 rounded-lg border bg-muted/50 p-6 text-center` panel)
   removed; replaced by `OpenClipboardButton`, the bare `buttonVariants({ size:
   "lg" })` "Open the clipboard →" link. `ContentPage`'s `title` accepts a
   `ReactNode`.
 - `src/app/share-text-between-phone-and-pc/page.tsx` — H1 gets a phone-only
-  break (`<br className="sm:hidden" />` after "your"); `OpenClipboardButton`
+  text "Share text between your phone and PC" → "Share text between phone and
+  PC", with a phone-only break (`<br className="sm:hidden" />` after
+  "between"); `OpenClipboardButton`
   sits at the bottom of the "Phone to PC in under a minute" section in a
   `flex justify-center pt-1` row. `src/app/security/page.tsx` — trailing CTA
   panel removed.
@@ -365,8 +374,9 @@ never looks like a no-op when the password is masked.
 
 **Migration to a sibling:** no token values to copy. If the sibling has the
 same fixed-height shell with a scrolling `<main>`, swap `h-screen
-overflow-hidden` → `h-dvh overflow-clip` and add the `RouteScrollReset`
-component after its page content. Put a single centered call-to-action button
+overflow-hidden` → `app-shell h-dvh overflow-clip`, copy the two `.app-shell`
+`@supports` fallbacks from `globals.css`, and add the `RouteScrollReset`
+component (with `src/lib/route-scroll.ts`) after its page content. Put a single centered call-to-action button
 inside the relevant section rather than a separate panel. For any control whose
 effect can be invisible, copy `src/lib/motion.ts` and play the two beats on
 the control and its target field.

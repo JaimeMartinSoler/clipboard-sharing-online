@@ -12,7 +12,7 @@ import {
   RotateCcw,
   Settings,
 } from "lucide-react";
-import { useRef, type ReactNode } from "react";
+import { useRef, type MouseEvent, type ReactNode } from "react";
 import { PasswordStrengthMeter } from "@/components/password-strength-meter";
 import { PrivacyHighlights } from "@/components/privacy-highlights";
 import { Button } from "@/components/ui/button";
@@ -102,7 +102,7 @@ export function RoomEntry({
   const passwordRef = useRef<HTMLInputElement>(null);
   function handleGenerate(
     kind: PasswordKind,
-    e: React.MouseEvent<HTMLButtonElement>,
+    e: MouseEvent<HTMLButtonElement>,
   ) {
     onGeneratePassword(kind);
     playAnimation(e.currentTarget, ...BUTTON_BEAT);

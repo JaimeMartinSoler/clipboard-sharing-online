@@ -19,9 +19,9 @@ export default function PhoneToPcPage() {
       icon={MonitorSmartphone}
       title={
         <>
-          Share text between your{" "}
-          {/* Portrait phones wrap after "your" so the second line isn't a
-              lone "and PC". */}
+          Share text between{" "}
+          {/* Portrait phones wrap after "between" so the second line isn't a
+              lone "PC". */}
           <br className="sm:hidden" />
           phone and PC
         </>
