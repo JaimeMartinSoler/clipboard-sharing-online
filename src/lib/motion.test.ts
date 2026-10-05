@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  ATTENTION_BEAT,
   BUTTON_BEAT,
   FIELD_BEAT,
   playAnimation,
@@ -59,5 +60,29 @@ describe("playAnimation", () => {
       throw new Error("bad keyframe");
     });
     expect(playAnimation({ animate }, ...BUTTON_BEAT, noMotionPref)).toBe(false);
+  });
+});
+
+/** The deviation from rest of each keyframe's `scale(x)`, e.g. 0.95 → -0.05. */
+function scaleDeltas(keyframes: Keyframe[]): number[] {
+  return keyframes.map((k) => {
+    const m = /^scale\(([\d.]+)\)$/.exec(String(k.transform));
+    return Number(m?.[1]) - 1;
+  });
+}
+
+describe("ATTENTION_BEAT", () => {
+  it("is BUTTON_BEAT's pump at 3× amplitude, played twice, untinted", () => {
+    const [keyframes, options] = ATTENTION_BEAT;
+    expect(options.iterations).toBe(2);
+    expect(options.duration).toBe(BUTTON_BEAT[1].duration);
+    expect(keyframes.map((k) => k.offset)).toEqual(
+      BUTTON_BEAT[0].map((k) => k.offset),
+    );
+    const base = scaleDeltas(BUTTON_BEAT[0]);
+    scaleDeltas(keyframes).forEach((delta, i) => {
+      expect(delta).toBeCloseTo(3 * (base[i] ?? Number.NaN), 6);
+    });
+    expect(keyframes.some((k) => "backgroundColor" in k)).toBe(false);
   });
 });

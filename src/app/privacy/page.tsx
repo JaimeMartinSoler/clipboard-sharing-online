@@ -195,7 +195,8 @@ export default function PrivacyPage() {
               <strong>nothing to accept</strong>.
             </li>
             <li>
-              Your theme and interface preferences live in this browser&apos;s{" "}
+              Your theme, interface preferences and a &ldquo;visited
+              before&rdquo; marker live in this browser&apos;s{" "}
               <strong>local storage</strong>, never in a cookie sent to any
               server.
             </li>

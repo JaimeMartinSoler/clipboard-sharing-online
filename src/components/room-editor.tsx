@@ -20,6 +20,7 @@ import type { LiveStatus } from "@/components/use-live-room";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import type { SyncMode } from "@/lib/api";
+import { isPushDisabled } from "@/lib/push-state";
 
 export const TTL_OPTIONS = [
   { label: "1 minute", ms: 60_000 },
@@ -80,6 +81,11 @@ const SYNC_MODE_INFO: Record<
  * locally. The Expiry selector (creator only) sets the TTL sent with the next
  * Push. In live modes the toolbar also shows the connection dot and the
  * per-client conflict policy ("on update: overwrite / warn").
+ *
+ * Push and Clear also disable on what is known locally: Push in the live
+ * `push` mode when the text is exactly what was last synced with the server
+ * (`hasUnsyncedChanges` false — see `isPushDisabled`), Clear when the box is
+ * already empty. Manual Push and "Sync now" (typing mode) stay enabled.
  */
 export function RoomEditor({
   text,
@@ -94,6 +100,7 @@ export function RoomEditor({
   onPush,
   onPull,
   onClear,
+  hasUnsyncedChanges,
   canSetExpiry,
   syncMode,
   liveStatus,
@@ -112,6 +119,8 @@ export function RoomEditor({
   onPush: () => void;
   onPull: () => void;
   onClear: () => void;
+  /** The text differs from what was last pushed, pulled, or applied live. */
+  hasUnsyncedChanges: boolean;
   /** Only the creator may choose the server-side TTL. */
   canSetExpiry: boolean;
   /** The room's sync mode (fixed at creation) — decides the button set. */
@@ -124,6 +133,7 @@ export function RoomEditor({
   const isLive = syncMode !== "manual";
   const pushCopy = PUSH_LABELS[syncMode];
   const mode = SYNC_MODE_INFO[syncMode];
+  const pushDisabled = isPushDisabled(syncMode, busyAny, hasUnsyncedChanges);
 
   async function handlePaste() {
     try {
@@ -188,19 +198,24 @@ export function RoomEditor({
           </Hint>
         </div>
       </div>
+      {/* Long lines scroll horizontally instead of wrapping (`wrap="off"` for
+          Safari, plus `whitespace-pre`), so code, URLs and tables keep their
+          shape. Portrait phones get one text line less height (13.5rem vs
+          15rem) so the Share options below fit on the same screen. */}
       <textarea
         value={text}
         onChange={(e) => onTextChange(e.target.value)}
         placeholder="Type or paste the text to share…"
         spellCheck={false}
-        className="min-h-60 w-full resize-y rounded-md border border-input bg-background p-3 font-mono text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        wrap="off"
+        className="min-h-54 w-full resize-y overflow-x-auto whitespace-pre rounded-md border border-input bg-background p-3 font-mono text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-60"
       />
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         {/* Push/Pull/Clear: equal columns that never resize when a label swaps
             to its busy form ("Pull" → "Pulling…"), so the row can't jump. */}
         <div className="grid w-full grid-cols-3 gap-2 sm:inline-grid sm:w-auto">
           <ActionButton
-            disabled={busyAny}
+            disabled={pushDisabled}
             onClick={onPush}
             hint={pushCopy.hint}
             icon={<Upload />}
@@ -221,7 +236,7 @@ export function RoomEditor({
             variant="outline"
           />
           <ActionButton
-            disabled={busyAny}
+            disabled={busyAny || text === ""}
             onClick={onClear}
             hint="Clear the text box here. This is local only — it does not touch the server; use Push to overwrite the shared blob."
             icon={<Trash2 />}

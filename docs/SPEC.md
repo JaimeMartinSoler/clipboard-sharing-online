@@ -90,7 +90,12 @@ ciphertext it has no way to decrypt.
 - One input pane, a clear action bar (Push, Pull, Copy, Clear), and exactly one
   always-present status line so the layout never jumps.
 - Controls carry on-hover tooltips; mode-dependent controls are
-  disabled/grayed, never hidden.
+  disabled/grayed, never hidden. Controls that would be a known local no-op are
+  disabled too: **Push** in live push-mode rooms while the text equals the last
+  pushed/pulled/applied copy (manual rooms keep it enabled — another device may
+  have overwritten the blob unseen, and a re-push re-sends the TTL; "Sync now"
+  in auto-sync rooms also stays enabled), **Clear** while the box is empty.
+- The text box does not soft-wrap: long lines scroll horizontally.
 - Show the room's expiry countdown after a successful push/pull.
 - Never reveal whether a room "exists" beyond what a legitimate user needs: a
   failed pull and a wrong-password pull look the same to the user and identical

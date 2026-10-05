@@ -130,12 +130,20 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   below the editor to **every** member — creator and joiners — so anyone can
   invite another device) hold Copy password / Show password / Share link / Show
   QR (icon-left, centered label), plus a short "anyone with the password or link
-  can join" warning. The Share link button uses the native share sheet
+  can join" warning. The four buttons are primary-filled; the Show password /
+  Show QR toggles flip to `outline` while their reveal is open ("Hide …"). On
+  entering a room they just created, the **creator** (only) sees the heading and
+  buttons play a double pump (`ATTENTION_BEAT` in `src/lib/motion.ts`). The Share link button uses the native share sheet
   (`navigator.share`, the `share-2` icon) on mobile and falls back to copy on
   desktop; it and the QR encode `https://<origin>/#p=<base64url(password)>`. The
   password rides in the URL **fragment only** — never the path/query, which would
   leak it to the edge, analytics, and logs. The app auto-joins on load then
-  scrubs the fragment. The QR uses a vendored, dependency-free encoder
+  scrubs the fragment. A **first-time visitor** arriving that way (no
+  `cso.visited.v1` marker, read/written by `hasVisitedBefore`/`recordVisit` in
+  `preferences.ts`) also gets a one-line, dismissible `FirstVisitExplainer`
+  above the editor — what the site is, that it's E2E encrypted, and a "How it
+  works" link opened in a **new tab** (navigating away would forfeit the
+  in-memory slot). It never delays the join; returning visitors see nothing. The QR uses a vendored, dependency-free encoder
   (`src/lib/qr.ts`) as inline SVG. Room administration (roster + Remove room)
   stays creator-only in the `CreatorPanel`, rendered below the Share options.
   Clicking the header title/logo (or the browser Back button) returns to the
@@ -197,7 +205,9 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
 - **Entry-view UI preferences persist** to `localStorage` via the pure,
   unit-tested `src/lib/preferences.ts` (namespaced `cso.ui.v1`): the last
   password *generator style*, show/hide, the Advanced Settings open state, and
-  its choices (sealed/open, capacity, sync mode). The **password itself is never
+  its choices (sealed/open, capacity, sync mode). Defaults: a **Safer** (long)
+  generated password, **hidden** — the common path is create → share the
+  link/QR → done. The **password itself is never
   stored** — only the generator kind, used to reseed a fresh one. Theme is
   persisted separately by `next-themes`. Reads are total (SSR/corruption-safe →
   defaults); prefs are applied in a post-hydration effect so SSR markup matches.

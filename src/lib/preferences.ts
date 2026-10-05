@@ -34,8 +34,10 @@ export interface UiPreferences {
 }
 
 export const DEFAULT_PREFERENCES: UiPreferences = {
-  passwordKind: "simple",
-  showPassword: true,
+  // A long generated password, kept hidden: the common path is "create → share
+  // the link/QR → done", so nobody needs to read or retype it.
+  passwordKind: "safer",
+  showPassword: false,
   advancedOpen: false,
   sealedRoom: true,
   capacity: 2,
@@ -110,5 +112,37 @@ export function savePreferences(prefs: UiPreferences): void {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
   } catch {
     // Best-effort only: a full/blocked store must never break the UI.
+  }
+}
+
+/**
+ * First-visit marker, kept under its own key (not inside `UiPreferences`, which
+ * is only written once a preference actually changes). Holds no data beyond
+ * "this browser has opened the app before" — it lets a share-link recipient see
+ * a one-time explainer of what the site is, and a returning visitor nothing.
+ */
+const VISITED_KEY = "cso.visited.v1";
+
+/**
+ * Whether this browser has opened the app before. Total like `loadPreferences`:
+ * only the exact marker counts as a return visit; SSR, blocked storage, or a
+ * missing/corrupt value all read as a first visit.
+ */
+export function hasVisitedBefore(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(VISITED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** Record that this browser has opened the app. Never throws. */
+export function recordVisit(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(VISITED_KEY, "1");
+  } catch {
+    // Best-effort only, like `savePreferences`.
   }
 }
