@@ -420,7 +420,8 @@ gets a one-line note on what the site is.
   sm:min-h-60` (one text line / 10% shorter on portrait phones so the Share
   options fit the same screen), plus `wrap="off" overflow-x-auto
   whitespace-pre` (horizontal scroll instead of soft-wrap). Push is disabled
-  while the text equals the last-synced copy (not "Sync now"); Clear is
+  in live push-mode rooms while the text equals the last-synced copy (not in
+  manual rooms, not "Sync now"); Clear is
   disabled while the box is empty — the existing `disabled:opacity-50` style.
 - `src/components/first-visit-explainer.tsx` (new) — `flex items-start gap-2
   rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground` row:

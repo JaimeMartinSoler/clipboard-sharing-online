@@ -20,6 +20,7 @@ import type { LiveStatus } from "@/components/use-live-room";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import type { SyncMode } from "@/lib/api";
+import { isPushDisabled } from "@/lib/push-state";
 
 export const TTL_OPTIONS = [
   { label: "1 minute", ms: 60_000 },
@@ -81,10 +82,10 @@ const SYNC_MODE_INFO: Record<
  * Push. In live modes the toolbar also shows the connection dot and the
  * per-client conflict policy ("on update: overwrite / warn").
  *
- * Push and Clear also disable on what is known locally: Push when the text is
- * exactly what was last synced with the server (`hasUnsyncedChanges` false),
- * Clear when the box is already empty. "Sync now" (typing mode) is exempt — it
- * stays available as a manual nudge.
+ * Push and Clear also disable on what is known locally: Push in the live
+ * `push` mode when the text is exactly what was last synced with the server
+ * (`hasUnsyncedChanges` false — see `isPushDisabled`), Clear when the box is
+ * already empty. Manual Push and "Sync now" (typing mode) stay enabled.
  */
 export function RoomEditor({
   text,
@@ -132,8 +133,7 @@ export function RoomEditor({
   const isLive = syncMode !== "manual";
   const pushCopy = PUSH_LABELS[syncMode];
   const mode = SYNC_MODE_INFO[syncMode];
-  const pushDisabled =
-    busyAny || (syncMode !== "typing" && !hasUnsyncedChanges);
+  const pushDisabled = isPushDisabled(syncMode, busyAny, hasUnsyncedChanges);
 
   async function handlePaste() {
     try {
