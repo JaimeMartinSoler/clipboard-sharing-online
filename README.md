@@ -44,8 +44,8 @@ what the server can and cannot see, and the known limitations.
 4. Type or paste text → **Push** (encrypted in your browser, then uploaded).
 5. On the other devices: in a live room the text just **appears** (decrypted in
    the browser on arrival); in a manual room click **Pull**. A wrong password
-   simply lands in a different room or fails to decrypt — the server gives the
-   same answer either way. Live rooms have a per-terminal **On update** toggle:
+   simply lands in a different room or fails to decrypt — the server can't tell a
+   wrong password from a right one. Live rooms have a per-terminal **On update** toggle:
    *overwrite my text* (default) or *warn, keep my edits* (Pull then loads it).
 6. **Undo** / **Redo** / **Copy** / **Paste** work on the text pane; **Clear**
    empties it locally (it does not touch the server — Push is what overwrites
@@ -98,19 +98,26 @@ Joiners get a focused view: the shared editor, the share options, and
   `'self'` (the same-origin API), the explicit same-origin `wss://` hosts for
   live sync, plus the cookieless Cloudflare Web Analytics beacon — no other
   third-party egress.
-- **Sealed rooms (defense-in-depth).** A capped, sealable room protects content
+- **Sealed rooms (defense-in-depth).** A private (capped, sealable) room protects content
   against a *later* password compromise. It is access control on top of the
   encryption, never a substitute — and membership is strictly in-memory, so a
   reload forfeits the slot. A creator can instead choose a **public room** (no
   terminal limit, never seals); the E2EE and every other guard are unchanged.
 
-### Worked example: `hello world` with password `1234`
+### Worked example: `hello world` with password `HGDA42`
 
-A creator and a joiner both type the password `1234`. Each browser derives the
+A creator and a joiner both type the password `HGDA42`. Each browser derives the
 same keys **independently** — nothing secret is exchanged, and nothing secret
-reaches the server. The values below are real: they are what this app's
-[`src/lib/crypto.ts`](src/lib/crypto.ts) produces (the `iv` and ciphertext are
-fresh random values on every push).
+reaches the server. Values in `⟨angle brackets⟩` stand in for the real outputs
+of this app's [`src/lib/crypto.ts`](src/lib/crypto.ts) and show their exact
+shape: a 16-byte `room_id` is 22 base64url characters, a 96-bit `iv` is 16, and
+`hello world` (11 bytes + the 16-byte GCM tag) is 36. The `iv` and ciphertext
+are fresh random values on every push anyway.
+
+> **Don't reuse this example.** This README is public, so the `HGDA42` room is
+> effectively a public room: anyone trying the example on the live site lands in
+> the same real room (or finds it sealed). Never put real data behind an example
+> password.
 
 ```mermaid
 sequenceDiagram
@@ -119,12 +126,13 @@ sequenceDiagram
     participant S as Server (Worker + D1 + Durable Object)
     participant J as Joiner browser
 
-    Note over C: password "1234"<br/>Argon2id (64 MiB, t=3) then HKDF<br/>room_id = ufiU8SNxLA8FGsprFSV_Ag (one-way: no way back to the password)<br/>content key stays in the browser
+    Note over C: password "HGDA42"<br/>Argon2id (64 MiB, t=3) then HKDF<br/>room_id = ⟨22 base64url chars⟩<br/>(one-way: no way back to the password)<br/>content key stays in the browser
     C->>S: POST /api/rooms {roomId, mode: create, capacity: 2}
     Note over S: stores room_id, capacity, sync_mode<br/>and SHA-256(token) only
     S-->>C: {token, role: creator}
+    C->>S: open WebSocket (token in Sec-WebSocket-Protocol header)
 
-    Note over J: password "1234" (typed, or decoded from the share link's<br/>fragment p=MTIzNA, the base64url of "1234")<br/>same derivation, same room_id and key
+    Note over J: password "HGDA42" (typed, or decoded from<br/>the share link's fragment p=SEdEQTQy,<br/>the base64url of "HGDA42")<br/>same derivation, same room_id and key
     J->>S: POST /api/rooms {roomId, mode: join}
     Note over S: 2 of 2 terminals: room sealed
     S-->>J: {token, role: joiner}
@@ -132,28 +140,28 @@ sequenceDiagram
 
     Note over C: encrypt "hello world" with AES-GCM-256<br/>and a fresh random 96-bit iv
     C->>S: POST /api/clipboard {roomId, ciphertext, iv} with Bearer token
-    Note over S: D1 row holds ciphertext + iv + expires_at<br/>cannot decrypt: it has no key
-    S-->>J: broadcast {type: update, ciphertext, iv}
+    Note over S: the room's Durable Object runs a guarded<br/>D1 write (ciphertext + iv + expires_at)<br/>cannot decrypt: it has no key
+    S-->>J: broadcast {type: update, ciphertext, iv} (via the room's Durable Object)
     Note over J: decrypt with the content key<br/>shows "hello world"
 ```
 
 | Step | Creator's browser | Over the wire / stored by the server | Joiner's browser |
 | --- | --- | --- | --- |
-| Password | `1234` — never sent | *nothing* | `1234` — never sent (a share link carries it only in the `#p=MTIzNA` fragment — `MTIzNA` is the **base64url** of `1234`, an encoding, not encryption — and browsers never transmit the fragment) |
-| Key derivation | `1234` → Argon2id → HKDF → `room_id` + non-extractable AES-GCM-256 key. One-way: the `room_id` is computed **from** the password, never the reverse | *nothing* | the same `room_id` and key, derived independently |
-| Create / join | `POST /api/rooms` | `roomId: "ufiU8SNxLA8FGsprFSV_Ag"`, `capacity: 2`, `sync_mode`, **SHA-256** of each member's token | `POST /api/rooms` (join seals the room at 2/2) |
-| Push | encrypts `hello world` | `ciphertext: "1m6MscD-vInE_htN73Z8AZBKWPEV9XWAI6KM"`, `iv: "JE6C-FIJ_uBD7Pzw"`, `expires_at` | — |
+| Password | `HGDA42` — never sent | *nothing* | `HGDA42` — never sent (a share link carries it only in the `#p=SEdEQTQy` fragment — `SEdEQTQy` is the **base64url** of `HGDA42`, an encoding, not encryption — and browsers never transmit the fragment) |
+| Key derivation | `HGDA42` → Argon2id → HKDF → `room_id` + non-extractable AES-GCM-256 key. One-way: the `room_id` is computed **from** the password, never the reverse | *nothing* | the same `room_id` and key, derived independently |
+| Create / join | `POST /api/rooms` | `roomId: "⟨22 base64url chars⟩"`, `capacity: 2`, `sync_mode`, **SHA-256** of each member's token | `POST /api/rooms` (join seals the room at 2/2) |
+| Push | encrypts `hello world` | `ciphertext: "⟨36 base64url chars⟩"`, `iv: "⟨16 base64url chars⟩"`, `expires_at` | — |
 | Delivery | — | the same `{ciphertext, iv}` pushed over `wss://` by the room's Durable Object | decrypts to `hello world` |
-| Wrong password `12345` | — | derives `room_id: "D8MKLJJ6i5pWYRzbC0vCFg"`, a different room → join gets `404` | — |
+| Wrong password `HGDA43` | — | derives a completely different `room_id`, a different room → join gets `404` | — |
 
 **The `room_id` is derived from the password, and the password cannot be
 recovered from the `room_id`.** Argon2id and HKDF are one-way functions:
-holding `ufiU8SNxLA8FGsprFSV_Ag` gives no way to compute `1234` backwards. What
-it does allow is **checking guesses**: the derivation is public and
-deterministic, so anyone can derive a candidate password and see whether it
-lands on the same `room_id`. For `1234` the first guess wins — **it is a
-terrible password**, and that guess-and-check attack is exactly the fixed-salt
-trade-off below. Argon2id makes every guess expensive (64 MiB of memory each),
+holding the `room_id` gives no way to compute `HGDA42` backwards. What it does
+allow is **checking guesses**: the derivation is public and deterministic, so
+anyone can derive a candidate password and see whether it lands on the same
+`room_id`. Six uppercase letters and digits is a small search space — **it is a
+weak password** (and now a published one), and that guess-and-check attack is
+exactly the fixed-salt trade-off below. Argon2id makes every guess expensive (64 MiB of memory each),
 which defeats long random passphrases but not short common ones. The strength
 meter flags weak passwords; real rooms should use the generated **Password
 Safer**.
@@ -167,7 +175,11 @@ Safer**.
 | Timestamps: created, expires, member joined | The plaintext |
 | Room settings: `capacity`, `sealed`, `sync_mode` | Raw membership tokens (only their SHA-256 hashes are stored) |
 | Member roles (`creator` / `joiner`) | The share-link fragment (`#p=…`, the base64url-encoded password) |
-| Request timing and the source IP in transit (used only for in-memory rate limiting, **never stored**) | IP addresses at rest, accounts, or any other PII |
+| Request timing and the source IP in transit (used only for in-memory rate limiting, **never stored by this app**) | IP addresses at rest in the app's database, accounts, or any other PII |
+
+The app never persists IPs, but it runs on Cloudflare: the platform itself (edge
+and Worker logs, analytics) may see or retain request IPs under Cloudflare's own
+policies. It never sees anything more than ciphertext, though.
 
 ### Crypto, in one paragraph
 

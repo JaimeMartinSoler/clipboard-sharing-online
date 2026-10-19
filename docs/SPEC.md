@@ -44,8 +44,9 @@ ciphertext it has no way to decrypt.
    and uploaded).
 5. On device B: in a live room the text simply **appears** (decrypted in the
    browser on arrival); in a manual room click **Pull** (the encrypted blob is
-   downloaded and decrypted in the browser). A wrong password simply fails to
-   decrypt — the server gives the same answer either way. In live rooms each
+   downloaded and decrypted in the browser). A wrong password simply lands in a
+   different room or fails to decrypt — the server can't tell a wrong password
+   from a right one. In live rooms each
    terminal can choose what an incoming update does to unsaved local edits:
    **overwrite** (default) or **warn** (keep the edits; Pull loads the update).
 6. The shared blob (and the whole room, with its seal and memberships) expires
@@ -104,7 +105,7 @@ ciphertext it has no way to decrypt.
 ## Configurable (sane defaults, document them)
 - **Terminals (capacity):** default **2**; clamped to a small range (1–6). Set
   by whoever joins first; the room seals at this count. A creator may instead
-  pick an **open room** (`capacity = 0`): no limit, never seals — trading the
+  pick a **public room** (`capacity = 0`): no limit, never seals — trading the
   seal-on-full protection for unbounded joining on one password.
 - **TTL:** default ~10 minutes; offer a small fixed set (e.g. 1 min / 10 min /
   1 hour) — shorter is safer.

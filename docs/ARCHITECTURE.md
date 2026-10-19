@@ -191,8 +191,8 @@ validation, and uniform error responses that don't leak room existence.
   slot is granted only when `sealed=0 AND (capacity=0 OR COUNT(members WHERE
   room_id) < capacity)`; two terminals racing for the last slot cannot both win
   (no over-seal, no TOCTOU).
-- **Open rooms (`capacity = 0`).** A creator can opt out of the terminal cap
-  entirely (the Private/**Public room** toggle). `capacity = 0` bypasses the join count check
+- **Public rooms (`capacity = 0`).** A creator can opt out of the terminal cap
+  entirely (the "Private room / Public room" toggle in Advanced Settings). `capacity = 0` bypasses the join count check
   and the seal step never fires (`… AND capacity > 0`), so `sealed` stays `0` and
   the room admits unlimited terminals for its lifetime. This relaxes only the
   seal-on-full access layer; the content E2EE, bearer tokens, size cap, and rate
@@ -221,7 +221,7 @@ validation, and uniform error responses that don't leak room existence.
 -- worker/migrations/0001_init.sql
 CREATE TABLE IF NOT EXISTS rooms (
   room_id    TEXT    PRIMARY KEY,   -- opaque, client-derived (see crypto)
-  capacity   INTEGER NOT NULL,      -- max terminals; default 2, 1–6; 0 = open (unbounded, never seals)
+  capacity   INTEGER NOT NULL,      -- max terminals; default 2, 1–6; 0 = public (unbounded, never seals)
   ciphertext TEXT,                  -- base64url AES-GCM ciphertext (nullable until first push)
   iv         TEXT,                  -- base64url 96-bit nonce (nullable until first push)
   created_at INTEGER NOT NULL,      -- epoch ms
@@ -246,7 +246,7 @@ ALTER TABLE rooms ADD COLUMN sync_mode TEXT NOT NULL DEFAULT 'manual'; -- 'manua
 One `rooms` row per room (latest clipboard only) plus one `members` row per
 joined terminal — the first being the `creator`. A room is **sealed** once
 `rooms.sealed = 1` (set when `capacity > 0 AND COUNT(members) >= capacity`, then
-permanent so a removed joiner never reopens a slot); an **open room**
+permanent so a removed joiner never reopens a slot); a **public room**
 (`capacity = 0`) never seals. `ciphertext`/`iv` are null
 between joining and the first push. D1's primary gives strongly consistent
 reads, so a Push — and a freshly allocated slot — is visible to an immediate
