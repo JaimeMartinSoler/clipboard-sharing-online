@@ -97,7 +97,7 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   clamped 1–6); others **join** (`mode:"join"`, `joiner`). When full the room is
   **sealed** (`rooms.sealed=1`, set atomically, **never reset**) — no further
   join, ever, for that room instance. A creator may instead make an **open room**
-  (`capacity = 0`, the "Open room" toggle in Advanced Settings): no terminal
+  (`capacity = 0`, the Private/**Public room** toggle in Advanced Settings): no terminal
   limit, `sealed` stays `0` forever, anyone with the password can keep joining.
   This only relaxes the seal-on-full access layer — the content E2EE, membership
   tokens, size cap, and rate limit are unchanged. This is a defense-in-depth

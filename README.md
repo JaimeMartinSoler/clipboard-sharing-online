@@ -1,5 +1,9 @@
 # Clipboard Sharing Online
 
+**🌐 Live: [clipboard-sharing-online.com](https://clipboard-sharing-online.com/)**
+· Sibling site: [office-dev-tools.com](https://office-dev-tools.com/)
+(privacy-first office & dev tools that run with no backend at all)
+
 Share **text** between devices that agree on a single **password** — with the
 server only ever holding **opaque ciphertext** it cannot read.
 
@@ -11,78 +15,85 @@ server only ever holding **opaque ciphertext** it cannot read.
 > Open your browser's Network tab and see for yourself.
 
 It is the security-first sibling of
-[`office-tools-online`](https://github.com/JaimeMartinSoler/office-tools-online):
+[office-dev-tools.com](https://office-dev-tools.com/)
+([`office-tools-online`](https://github.com/JaimeMartinSoler/office-tools-online)):
 that app guarantees privacy by having **no backend at all**; this one *must*
 relay data between devices, so instead it guarantees privacy with **zero-knowledge
-encryption**.
+encryption**. Jump to [Privacy by design](#privacy-by-design) for the data flow,
+what the server can and cannot see, and the known limitations.
 
 ## How it works
 
-1. Open the site and type a **long shared password** (strength matters).
-2. On one device, **Create** the room — you become its **creator** and set **how
-   many terminals** may share it (default 2) plus the **sharing mode**:
-   - **Broadcast: Push Manual, Pull Auto** (default): you click Push; the other
-     terminals receive it **instantly** over an encrypted WebSocket.
-   - **Sync: Push & Pull Auto**: the text auto-pushes shortly after you stop
-     typing; the others see it live.
-   - **Manual: Push & Pull Manual**: the classic explicit flow, no socket at all.
-   On the others, **Join** with the same password (or open the creator's share
-   link, which joins automatically) — joiners inherit the room's mode.
-3. Joining claims a slot; once full the room is **sealed** — no further terminal
-   can ever join *that* room instance.
-4. On device A: paste/type text → **Push** (encrypted in your browser, then
-   uploaded).
-5. On device B: in a live room the text just **appears** (decrypted in your
-   browser on arrival); in a manual room click **Pull**. A wrong password simply
-   fails to decrypt — the server gives the same answer either way. Live rooms
-   have a per-terminal **On update** toggle: *overwrite my text* (default) or
-   *warn, keep my edits* (Pull then loads the update).
-6. **Copy** / **Paste** move text between the pane and your device clipboard;
-   **Clear** empties the text box locally (it does not touch the server — Push
-   is what overwrites the shared blob). The blob and the whole room auto-expire
-   after a short TTL.
+1. Open the site and type a **long shared password** — or generate one with
+   **Password Safer** (long, high-entropy; the default) or **Password Simple**
+   (short, easy to read aloud). A strength meter steers you away from weak ones.
+2. On one device, **Create room** — you become its **creator**. The room options
+   live under a collapsed **Advanced Settings** panel:
+   - **Private room** (default): capped at **Terminals** 1–6 (default 2) and
+     **sealed** once full — no further terminal can ever join *that* room
+     instance. **Public room**: no limit, never seals.
+   - **Sharing mode**, fixed for the room's lifetime:
+     - **Broadcast: Push Manual, Pull Auto** (default): you click Push; the
+       other terminals receive it **instantly** over an encrypted WebSocket.
+     - **Sync: Push & Pull Auto**: the text auto-pushes shortly after you stop
+       typing (Push becomes **Sync now**); the others see it live.
+     - **Manual: Push & Pull Manual**: the classic explicit flow, no socket at all.
+3. On the other devices, **Join room** with the same password — or open the
+   room's share link / scan its QR, which joins automatically. Joiners inherit
+   the creator's settings.
+4. Type or paste text → **Push** (encrypted in your browser, then uploaded).
+5. On the other devices: in a live room the text just **appears** (decrypted in
+   the browser on arrival); in a manual room click **Pull**. A wrong password
+   simply lands in a different room or fails to decrypt — the server gives the
+   same answer either way. Live rooms have a per-terminal **On update** toggle:
+   *overwrite my text* (default) or *warn, keep my edits* (Pull then loads it).
+6. **Undo** / **Redo** / **Copy** / **Paste** work on the text pane; **Clear**
+   empties it locally (it does not touch the server — Push is what overwrites
+   the shared blob). The blob and the whole room auto-expire after a short TTL
+   (10 minutes by default).
+
+### Share options (every member)
+
+Below the editor, **every** member — creator and joiners — gets **Copy
+password**, **Show password**, **Share link** (the native share sheet on
+mobile, copy on desktop), and **Show QR**, with a short reminder that anyone
+holding the password or link can join. The link is
+`https://clipboard-sharing-online.com/#p=<base64url(password)>`: the password
+rides in the URL **fragment**, which browsers never send to the server, so it
+doesn't reach logs or analytics. The app auto-joins, then scrubs the fragment
+from the address bar. The QR is rendered locally by a vendored encoder — no
+third-party service.
 
 ### Creator controls
 
 The creator gets extra tools (enforced at the server, not just the UI):
 
-- **Share** a one-tap auto-join link and a **QR** of it. The password rides in
-  the URL **fragment** (`…/#p=…`), which browsers never send to the server, so
-  sharing the link shares decryption ability without leaking to logs/analytics.
-- An on-demand **Terminals** table (role + connected time; **no IPs are stored**;
-  refresh on demand) with a **Remove** button to revoke a joiner. A revoked slot
-  stays sealed — it never reopens for a stranger.
-- **Remove room** to delete the content, all members, and the room instantly.
-- The **Expiry** selector (creator-only) sets the TTL sent with the next Push.
+- A **Terminals** table (role + connected time; **no IPs are stored**) with a
+  **Remove** button to revoke a joiner — in live rooms it also cuts their
+  socket at once. A revoked slot stays sealed; it never reopens for a stranger.
+  The table refreshes itself in live rooms (and via **Refresh** in any room).
+- **Remove room** deletes the content, all members, and the room instantly.
+- The **Expiry** selector (1 minute / 10 minutes / 1 hour) sets the TTL sent
+  with the next Push.
 
-Joiners get a focused view: the shared editor plus **Leave** (forfeit their
-slot). Room-status detail — slot counts, sealed state, expiry control — is shown
-only to the creator.
-
-### Crypto, in one paragraph
-
-`Argon2id(password, fixed app salt)` derives 32 bytes of master key material
-(via `hash-wasm`). `HKDF` splits that into a deterministic, opaque **`room_id`**
-(the only key-derived value ever sent) and a non-extractable **AES-GCM-256
-content key** (never sent). Each push uses a fresh random 96-bit `iv`; the GCM
-tag makes tampering detectable. Because the only shared secret is the password,
-derivation is deterministic and the salt is fixed — see
-[`docs/SECURITY.md`](docs/SECURITY.md) for the threat model and mitigations
-(memory-hard KDF, strong-passphrase nudging, short TTL, sealed rooms).
+Joiners get a focused view: the shared editor, the share options, and
+**Leave** (forfeit their slot).
 
 ## Privacy by design
 
 - **Encrypt before egress.** All content is AES-GCM-256 encrypted client-side
   *before* any network call.
-- **Zero-knowledge server.** Stored columns: `room_id`, `capacity`, `sealed`,
-  `sync_mode`, `ciphertext`, `iv`, `created_at`, `expires_at`, plus per-member
-  **token hashes** and a `creator`/`joiner` **role** — never the password,
-  keys, plaintext, or IP addresses. Live rooms change nothing here: the
-  WebSocket broadcasts carry the same ciphertext, fanned out by a per-room
-  Durable Object that stores no content (see
-  [`docs/SECURITY.md`](docs/SECURITY.md)).
-- **Ephemeral.** Rooms, memberships, and blobs share one TTL and auto-expire
-  (lazy delete on read + a cleanup cron).
+- **Zero-knowledge server.** It stores an opaque `room_id`, the `ciphertext`,
+  the `iv`, timestamps, and a little plaintext room metadata (`capacity`,
+  `sealed`, `sync_mode`) plus per-member **token hashes** and a
+  `creator`/`joiner` **role** — never the password, keys, plaintext, or IP
+  addresses. Live sync changes nothing here: the WebSocket broadcasts carry the
+  same ciphertext, fanned out by a per-room Durable Object that stores no
+  content.
+- **Ephemeral.** Rooms, memberships, and blobs share one TTL (10 min default,
+  1 h max) and auto-expire (lazy delete on read + a cleanup cron).
+- **Bounded blast radius.** Ciphertext is capped at 256 KiB, the API is
+  rate-limited per IP, and v1 is text only — no file uploads.
 - **Strict CSP.** [`public/_headers`](public/_headers) limits `connect-src` to
   `'self'` (the same-origin API), the explicit same-origin `wss://` hosts for
   live sync, plus the cookieless Cloudflare Web Analytics beacon — no other
@@ -90,9 +101,110 @@ derivation is deterministic and the salt is fixed — see
 - **Sealed rooms (defense-in-depth).** A capped, sealable room protects content
   against a *later* password compromise. It is access control on top of the
   encryption, never a substitute — and membership is strictly in-memory, so a
-  reload forfeits the slot (see the privacy page). A creator can instead choose
-  an **open room** (no terminal limit, never seals) when unbounded sharing on one
-  password is what's wanted; the E2EE and every other guard are unchanged.
+  reload forfeits the slot. A creator can instead choose a **public room** (no
+  terminal limit, never seals); the E2EE and every other guard are unchanged.
+
+### Worked example: `hello world` with password `1234`
+
+A creator and a joiner both type the password `1234`. Each browser derives the
+same keys **independently** — nothing secret is exchanged, and nothing secret
+reaches the server. The values below are real: they are what this app's
+[`src/lib/crypto.ts`](src/lib/crypto.ts) produces (the `iv` and ciphertext are
+fresh random values on every push).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Creator browser
+    participant S as Server (Worker + D1 + Durable Object)
+    participant J as Joiner browser
+
+    Note over C: password "1234"<br/>Argon2id (64 MiB, t=3) then HKDF<br/>room_id = ufiU8SNxLA8FGsprFSV_Ag (one-way: no way back to the password)<br/>content key stays in the browser
+    C->>S: POST /api/rooms {roomId, mode: create, capacity: 2}
+    Note over S: stores room_id, capacity, sync_mode<br/>and SHA-256(token) only
+    S-->>C: {token, role: creator}
+
+    Note over J: password "1234" (typed, or decoded from the share link's<br/>fragment p=MTIzNA, the base64url of "1234")<br/>same derivation, same room_id and key
+    J->>S: POST /api/rooms {roomId, mode: join}
+    Note over S: 2 of 2 terminals: room sealed
+    S-->>J: {token, role: joiner}
+    J->>S: open WebSocket (token in Sec-WebSocket-Protocol header)
+
+    Note over C: encrypt "hello world" with AES-GCM-256<br/>and a fresh random 96-bit iv
+    C->>S: POST /api/clipboard {roomId, ciphertext, iv} with Bearer token
+    Note over S: D1 row holds ciphertext + iv + expires_at<br/>cannot decrypt: it has no key
+    S-->>J: broadcast {type: update, ciphertext, iv}
+    Note over J: decrypt with the content key<br/>shows "hello world"
+```
+
+| Step | Creator's browser | Over the wire / stored by the server | Joiner's browser |
+| --- | --- | --- | --- |
+| Password | `1234` — never sent | *nothing* | `1234` — never sent (a share link carries it only in the `#p=MTIzNA` fragment — `MTIzNA` is the **base64url** of `1234`, an encoding, not encryption — and browsers never transmit the fragment) |
+| Key derivation | `1234` → Argon2id → HKDF → `room_id` + non-extractable AES-GCM-256 key. One-way: the `room_id` is computed **from** the password, never the reverse | *nothing* | the same `room_id` and key, derived independently |
+| Create / join | `POST /api/rooms` | `roomId: "ufiU8SNxLA8FGsprFSV_Ag"`, `capacity: 2`, `sync_mode`, **SHA-256** of each member's token | `POST /api/rooms` (join seals the room at 2/2) |
+| Push | encrypts `hello world` | `ciphertext: "1m6MscD-vInE_htN73Z8AZBKWPEV9XWAI6KM"`, `iv: "JE6C-FIJ_uBD7Pzw"`, `expires_at` | — |
+| Delivery | — | the same `{ciphertext, iv}` pushed over `wss://` by the room's Durable Object | decrypts to `hello world` |
+| Wrong password `12345` | — | derives `room_id: "D8MKLJJ6i5pWYRzbC0vCFg"`, a different room → join gets `404` | — |
+
+**The `room_id` is derived from the password, and the password cannot be
+recovered from the `room_id`.** Argon2id and HKDF are one-way functions:
+holding `ufiU8SNxLA8FGsprFSV_Ag` gives no way to compute `1234` backwards. What
+it does allow is **checking guesses**: the derivation is public and
+deterministic, so anyone can derive a candidate password and see whether it
+lands on the same `room_id`. For `1234` the first guess wins — **it is a
+terrible password**, and that guess-and-check attack is exactly the fixed-salt
+trade-off below. Argon2id makes every guess expensive (64 MiB of memory each),
+which defeats long random passphrases but not short common ones. The strength
+meter flags weak passwords; real rooms should use the generated **Password
+Safer**.
+
+### What the server can and cannot see
+
+| The server **can** see | The server **can never** see |
+| --- | --- |
+| Opaque `room_id` — derived one-way from the password; it can't be reversed, only checked against guesses | The password |
+| AES-GCM `ciphertext` + `iv`, and so the approximate text length | The Argon2id master key or the AES content key |
+| Timestamps: created, expires, member joined | The plaintext |
+| Room settings: `capacity`, `sealed`, `sync_mode` | Raw membership tokens (only their SHA-256 hashes are stored) |
+| Member roles (`creator` / `joiner`) | The share-link fragment (`#p=…`, the base64url-encoded password) |
+| Request timing and the source IP in transit (used only for in-memory rate limiting, **never stored**) | IP addresses at rest, accounts, or any other PII |
+
+### Crypto, in one paragraph
+
+`Argon2id(password, fixed app salt)` (64 MiB, 3 iterations, via `hash-wasm`)
+derives 32 bytes of master key material. `HKDF-SHA-256` splits that into a
+deterministic, opaque 16-byte **`room_id`** (the only key-derived value ever
+sent) and a non-extractable **AES-GCM-256 content key** (never sent). Each push
+uses a fresh random 96-bit `iv`; the GCM tag makes tampering detectable — a
+modified blob fails to decrypt rather than yielding altered text. Membership is
+a random bearer token per terminal, stored server-side only as a SHA-256 hash.
+Full details: [`docs/SECURITY.md`](docs/SECURITY.md) and
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+### Known limitations (stated honestly)
+
+- **Fixed salt ⇒ offline guessing.** The password is the only shared secret, so
+  derivation must be deterministic and the salt is a public app-wide constant.
+  An attacker can try passwords offline, and one precomputation works against
+  every user. Mitigations: memory-hard Argon2id, strong-passphrase nudging,
+  short TTL, and sealed rooms — but **a weak password is the dominant risk**.
+- **You trust the served code.** A malicious or compromised frontend build could
+  exfiltrate plaintext. The strict CSP and an inspectable Network tab narrow
+  this; they don't eliminate it.
+- **Metadata leaks.** Anyone watching the server learns that *some* room was
+  written or read, when, and roughly how big the ciphertext is — not what it says.
+- **The link is the key.** base64url is encoding, not encryption: whoever holds
+  the share link (or the password) can join and decrypt.
+- **Availability over convenience.** Someone who knows the password at the same
+  time can take the last slot of a private room and lock you out, and a reload
+  forfeits your own slot. Confidentiality is never weakened by either.
+- **Analytics beacon.** The site loads cookieless Cloudflare Web Analytics; it
+  sees page paths, never the fragment, keys, or content.
+- **Compromised endpoints** (malware, hostile extensions) see plaintext — no
+  E2EE can help there.
+
+The full threat model, the sealing analysis, and the out-of-scope threats are
+in [`docs/SECURITY.md`](docs/SECURITY.md).
 
 ## Tech stack
 
@@ -113,10 +225,12 @@ derivation is deterministic and the salt is fixed — see
 │  │                    # content pages (share-text-between-phone-and-pc/,
 │  │                    # security/), privacy/, about/, sitemap.ts,
 │  │                    # layout.tsx
-│  ├─ components/       # StatusBanner, Hint, ui/* primitives, the tool,
+│  ├─ components/       # StatusBanner, Hint, ui/* primitives, the tool
+│  │                    # (entry, editor, share options, creator panel),
 │  │                    # landing/content-page/FAQ/footer blocks
-│  └─ lib/              # result.ts, crypto.ts, api.ts, live.ts, debounce.ts,
-│                       # pages.ts (route registry), faq.ts, … (+ tests)
+│  └─ lib/              # crypto.ts, api.ts, live.ts, room-link.ts, qr.ts,
+│                       # password-gen.ts, preferences.ts, pages.ts, faq.ts,
+│                       # … (each with a co-located *.test.ts)
 ├─ public/_headers      # strict CSP
 └─ worker/              # package "worker": Cloudflare Worker API
    ├─ src/{index,db}.ts # Hono app + D1 queries
@@ -142,7 +256,7 @@ pnpm install
 pnpm dev          # http://localhost:3000
 pnpm build        # emits ./out
 pnpm lint
-pnpm test         # crypto + api + password-strength
+pnpm test         # every src/**/*.test.ts (crypto, api, live sync, prefs, …)
 
 # Worker API (local Wrangler + a simulated D1)
 pnpm --filter worker exec wrangler d1 migrations apply clipboard-sharing-online --local
@@ -278,6 +392,7 @@ All secrets and bindings live on the Worker; the frontend ships none.
 
 ## Documentation
 
-- [`docs/SPEC.md`](docs/SPEC.md) — product spec & UX.
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — crypto, API, D1 schema, expiry.
 - [`docs/SECURITY.md`](docs/SECURITY.md) — guarantees, the fixed-salt trade-off, threat model.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — crypto, API, D1 schema, expiry, live sync.
+- [`docs/SPEC.md`](docs/SPEC.md) — product spec & UX.
+- [`docs/STYLE_MIGRATION.md`](docs/STYLE_MIGRATION.md) — shared visual-style change log for sibling sites.

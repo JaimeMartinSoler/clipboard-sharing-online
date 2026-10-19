@@ -192,7 +192,7 @@ validation, and uniform error responses that don't leak room existence.
   room_id) < capacity)`; two terminals racing for the last slot cannot both win
   (no over-seal, no TOCTOU).
 - **Open rooms (`capacity = 0`).** A creator can opt out of the terminal cap
-  entirely (the "Open room" toggle). `capacity = 0` bypasses the join count check
+  entirely (the Private/**Public room** toggle). `capacity = 0` bypasses the join count check
   and the seal step never fires (`… AND capacity > 0`), so `sealed` stays `0` and
   the room admits unlimited terminals for its lifetime. This relaxes only the
   seal-on-full access layer; the content E2EE, bearer tokens, size cap, and rate

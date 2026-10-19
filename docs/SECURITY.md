@@ -37,7 +37,7 @@ does **not**, the residual risks of the password-only design, and the mitigation
 - See `docs/ARCHITECTURE.md` for exact info-strings and sizes.
 
 ## Share links keep the password in the URL fragment
-The creator can share an auto-join link (and a QR of it):
+Any member — creator or joiner — can share an auto-join link (and a QR of it):
 `https://<origin>/#p=<base64url(password)>`.
 
 - **Why the fragment.** The secret is placed **after `#`**, in the URL fragment.
@@ -119,7 +119,7 @@ The room creator sets a maximum number of terminals (default 2). Terminals
 **join** to claim a slot; when the room reaches capacity it is **sealed** and no
 further terminal can join *that room instance*.
 
-A creator may instead choose an **open room** (`capacity = 0`, the "Open room"
+A creator may instead choose an **open room** (`capacity = 0`, the Private/**Public room**
 toggle): the terminal cap is disabled, the room never seals, and anyone with the
 password can keep joining for the room's lifetime. This is a deliberate
 convenience that **forgoes the seal-on-full protection below** — it does not
