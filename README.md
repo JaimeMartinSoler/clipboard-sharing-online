@@ -73,8 +73,9 @@ The creator gets extra tools (enforced at the server, not just the UI):
   socket at once. A revoked slot stays sealed; it never reopens for a stranger.
   The table refreshes itself in live rooms (and via **Refresh** in any room).
 - **Remove room** deletes the content, all members, and the room instantly.
-- The **Expiry** selector (1 minute / 10 minutes / 1 hour) sets the TTL sent
-  with the next Push.
+- The **Expiry** selector (1 minute / 10 minutes / 1 hour) sets the room's TTL
+  for **every** terminal and restarts the countdown at once; each later Push,
+  from any member, re-arms it. Joiners can't change it (enforced server-side).
 
 Joiners get a focused view: the shared editor, the share options, and
 **Leave** (forfeit their slot).
@@ -85,7 +86,7 @@ Joiners get a focused view: the shared editor, the share options, and
   *before* any network call.
 - **Zero-knowledge server.** It stores an opaque `room_id`, the `ciphertext`,
   the `iv`, timestamps, and a little plaintext room metadata (`capacity`,
-  `sealed`, `sync_mode`) plus per-member **token hashes** and a
+  `sealed`, `sync_mode`, `ttl_ms`) plus per-member **token hashes** and a
   `creator`/`joiner` **role** — never the password, keys, plaintext, or IP
   addresses. Live sync changes nothing here: the WebSocket broadcasts carry the
   same ciphertext, fanned out by a per-room Durable Object that stores no
@@ -128,7 +129,7 @@ sequenceDiagram
 
     Note over C: password "HGDA42"<br/>Argon2id (64 MiB, t=3) then HKDF<br/>room_id = J2RRmhJBk6bY3w003JlN3A<br/>(one-way: no way back to the password)<br/>content key stays in the browser
     C->>S: POST /api/rooms {roomId, mode: create, capacity: 2}
-    Note over S: stores room_id, capacity, sync_mode<br/>and SHA-256(token) only
+    Note over S: stores room_id, capacity, sync_mode, ttl_ms<br/>and SHA-256(token) only
     S-->>C: {token, role: creator}
     C->>S: open WebSocket (token in Sec-WebSocket-Protocol header)
 
@@ -149,7 +150,7 @@ sequenceDiagram
 | --- | --- | --- | --- |
 | Password | `HGDA42` — never sent | *nothing* | `HGDA42` — never sent (a share link carries it only in the `#p=SEdEQTQy` fragment — `SEdEQTQy` is the **base64url** of `HGDA42`, an encoding, not encryption — and browsers never transmit the fragment) |
 | Key derivation | `HGDA42` → Argon2id → HKDF → `room_id` + non-extractable AES-GCM-256 key. One-way: the `room_id` is computed **from** the password, never the reverse | *nothing* | the same `room_id` and key, derived independently |
-| Create / join | `POST /api/rooms` | `roomId: "J2RRmhJBk6bY3w003JlN3A"`, `capacity: 2`, `sync_mode`, **SHA-256** of each member's token | `POST /api/rooms` (join seals the room at 2/2) |
+| Create / join | `POST /api/rooms` | `roomId: "J2RRmhJBk6bY3w003JlN3A"`, `capacity: 2`, `sync_mode`, `ttl_ms`, **SHA-256** of each member's token | `POST /api/rooms` (join seals the room at 2/2) |
 | Push | encrypts `hello world` | `ciphertext: "-qL_WXESlD0rkZ1D8gz0MzS1iubqNJtYQtcY"`, `iv: "jCoWtKInemep78L2"`, `expires_at` | — |
 | Delivery | — | the same `{ciphertext, iv}` pushed over `wss://` by the room's Durable Object | decrypts to `hello world` |
 | Wrong password `HGDA43` | — | derives `room_id: "_GuINxgV8Tsi-Z1twn9-yw"`, a completely different room → join gets `404` | — |
@@ -173,7 +174,7 @@ Safer**.
 | Opaque `room_id` — derived one-way from the password; it can't be reversed, only checked against guesses | The password |
 | AES-GCM `ciphertext` + `iv`, and so the approximate text length | The Argon2id master key or the AES content key |
 | Timestamps: created, expires, member joined | The plaintext |
-| Room settings: `capacity`, `sealed`, `sync_mode` | Raw membership tokens (only their SHA-256 hashes are stored) |
+| Room settings: `capacity`, `sealed`, `sync_mode`, `ttl_ms` | Raw membership tokens (only their SHA-256 hashes are stored) |
 | Member roles (`creator` / `joiner`) | The share-link fragment (`#p=…`, the base64url-encoded password) |
 | Request timing and the source IP in transit (used only for in-memory rate limiting, **never stored by this app**) | IP addresses at rest in the app's database, accounts, or any other PII |
 
@@ -247,7 +248,7 @@ in [`docs/SECURITY.md`](docs/SECURITY.md).
 └─ worker/              # package "worker": Cloudflare Worker API
    ├─ src/{index,db}.ts # Hono app + D1 queries
    ├─ src/room-do.ts    # RoomDO: per-room WebSocket fanout (hibernated)
-   ├─ migrations/       # 0001_init, 0002_roles_sealed, 0003_sync_mode
+   ├─ migrations/       # 0001_init, 0002_roles_sealed, 0003_sync_mode, 0004_room_ttl
    ├─ wrangler.toml     # D1 + DO bindings, /api/* route, cron, vars
    └─ test/             # vitest-pool-workers against a local D1
 ```

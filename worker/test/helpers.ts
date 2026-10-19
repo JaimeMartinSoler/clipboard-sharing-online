@@ -39,6 +39,7 @@ interface SeedRoomOptions {
   expiresAt?: number;
   sealed?: 0 | 1;
   syncMode?: "manual" | "push" | "typing";
+  ttlMs?: number;
 }
 
 export async function seedRoom(
@@ -47,7 +48,7 @@ export async function seedRoom(
 ): Promise<void> {
   const now = Date.now();
   await env.DB.prepare(
-    "INSERT OR REPLACE INTO rooms (room_id, capacity, ciphertext, iv, created_at, expires_at, sealed, sync_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT OR REPLACE INTO rooms (room_id, capacity, ciphertext, iv, created_at, expires_at, sealed, sync_mode, ttl_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
   )
     .bind(
       roomId,
@@ -58,6 +59,7 @@ export async function seedRoom(
       opts.expiresAt ?? now + 600_000,
       opts.sealed ?? 0,
       opts.syncMode ?? "manual",
+      opts.ttlMs ?? 600_000,
     )
     .run();
 }
@@ -88,6 +90,14 @@ export async function memberId(
     .first<{ id: number }>();
   if (!row) throw new Error("member not found");
   return row.id;
+}
+
+/** Read a room's stored TTL (ms), or null if the room is gone. */
+export async function roomTtl(roomId: string): Promise<number | null> {
+  const row = await env.DB.prepare("SELECT ttl_ms FROM rooms WHERE room_id = ?")
+    .bind(roomId)
+    .first<{ ttl_ms: number }>();
+  return row?.ttl_ms ?? null;
 }
 
 /** Read the sealed flag for a room (0/1), or null if the room is gone. */

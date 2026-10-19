@@ -93,7 +93,7 @@ ciphertext it has no way to decrypt.
   disabled/grayed, never hidden. Controls that would be a known local no-op are
   disabled too: **Push** in live push-mode rooms while the text equals the last
   pushed/pulled/applied copy (manual rooms keep it enabled — another device may
-  have overwritten the blob unseen, and a re-push re-sends the TTL; "Sync now"
+  have overwritten the blob unseen, and a re-push re-arms the room's expiry; "Sync now"
   in auto-sync rooms also stays enabled), **Clear** while the box is empty.
 - The text box does not soft-wrap: long lines scroll horizontally.
 - Show the room's expiry countdown after a successful push/pull — in the
@@ -109,7 +109,10 @@ ciphertext it has no way to decrypt.
   pick a **public room** (`capacity = 0`): no limit, never seals — trading the
   seal-on-full protection for unbounded joining on one password.
 - **TTL:** default ~10 minutes; offer a small fixed set (e.g. 1 min / 10 min /
-  1 hour) — shorter is safer.
+  1 hour) — shorter is safer. It is a room property owned by the creator:
+  changing it applies to every terminal at once and restarts the countdown, and
+  every push (from any member) re-arms the expiry from it. Joiners cannot
+  change it — enforced by the server, not just hidden in the UI.
 - **Max payload:** cap the *encrypted* size (e.g. 256 KB) and reject larger
   pushes with a clear error.
 

@@ -21,6 +21,7 @@ import {
   type JoinMode,
   pullClipboard,
   pushClipboard,
+  setRoomTtl,
   type SyncMode,
 } from "@/lib/api";
 import { decrypt, deriveKeys, encrypt } from "@/lib/crypto";
@@ -100,6 +101,8 @@ export function ClipboardApp() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [capacity, setCapacity] = useState(2);
   const [syncMode, setSyncMode] = useState<SyncMode>("push");
+  // The room's TTL as stored on the server (seeded on create/join). Only the
+  // creator sees and changes it; every member's push re-arms it server-side.
   const [ttlMs, setTtlMs] = useState<number>(600_000);
   // The text box is backed by an undo/redo history; `present` is what's shown.
   const [history, setHistory] = useState<History>(() => initHistory(""));
@@ -137,8 +140,8 @@ export function ClipboardApp() {
   sessionRef.current = session;
   const conflictPolicyRef = useRef(conflictPolicy);
   conflictPolicyRef.current = conflictPolicy;
-  const ttlMsRef = useRef(ttlMs);
-  ttlMsRef.current = ttlMs;
+  // Sequence for in-flight TTL changes: only the latest one may apply/revert.
+  const ttlRequestRef = useRef(0);
   /**
    * The text as last agreed with the server (pushed, pulled, or applied). The
    * ref serves async callbacks; the state mirror re-renders the editor so Push
@@ -253,6 +256,7 @@ export function ClipboardApp() {
           sealed,
           role,
           syncMode: roomSyncMode,
+          ttlMs: roomTtlMs,
         } = res.value;
         setSession({
           roomId: keys.value.roomId,
@@ -268,6 +272,7 @@ export function ClipboardApp() {
         resetText("");
         markSynced("");
         setExpiresAt(null);
+        setTtlMs(roomTtlMs);
         // Joiners see no room-status detail (slot counts / sealed state); that
         // is creator-only information. The creator gets the full picture.
         if (role !== "creator") {
@@ -395,7 +400,7 @@ export function ClipboardApp() {
         setStatus({ kind: "error", message: enc.error });
         return;
       }
-      const res = await pushClipboard(s.roomId, s.token, enc.value, ttlMsRef.current);
+      const res = await pushClipboard(s.roomId, s.token, enc.value);
       if (!res.ok) {
         if (res.error === ApiError.SLOT_LOST || res.error === ApiError.ROOM_GONE) {
           dropSession();
@@ -506,6 +511,11 @@ export function ClipboardApp() {
     onUpdate: (update) => void applyRemote(update),
     // A terminal joined or was revoked: signal the creator panel to re-pull.
     onRoster: () => setRosterSignal((n) => n + 1),
+    // The creator changed the TTL: follow the restarted countdown.
+    onExpiry: (at) => {
+      setExpiresAt(at);
+      setNow(Date.now());
+    },
     onRevoked: () => {
       dropSession();
       resetText("");
@@ -529,6 +539,38 @@ export function ClipboardApp() {
           "Live connection lost — updates won't arrive automatically, but Push and Pull still work.",
       }),
   });
+
+  /**
+   * Creator changed the Expiry select: store it on the room for everyone and
+   * restart the countdown. The select moves optimistically and reverts on
+   * failure; a newer change supersedes an older in-flight one.
+   */
+  const handleTtlChange = useCallback(
+    async (value: number) => {
+      if (!session) return;
+      const previous = ttlMs;
+      const request = ++ttlRequestRef.current;
+      setTtlMs(value);
+      const res = await setRoomTtl(session.roomId, session.token, value);
+      if (request !== ttlRequestRef.current) return;
+      if (!res.ok) {
+        setTtlMs(previous);
+        if (res.error === ApiError.SLOT_LOST || res.error === ApiError.ROOM_GONE) {
+          dropSession();
+        }
+        setStatus({ kind: "error", message: slotLostCopy(res.error) });
+        return;
+      }
+      setTtlMs(res.value.ttlMs);
+      setExpiresAt(res.value.expiresAt);
+      setNow(Date.now());
+      setStatus({
+        kind: "validated",
+        message: "Expiry updated for every terminal — the countdown restarted.",
+      });
+    },
+    [session, ttlMs, dropSession],
+  );
 
   const handlePull = useCallback(async () => {
     if (!session) return;
@@ -722,7 +764,7 @@ export function ClipboardApp() {
             canUndo={histCanUndo(history)}
             canRedo={histCanRedo(history)}
             ttlMs={ttlMs}
-            onTtlChange={setTtlMs}
+            onTtlChange={(value) => void handleTtlChange(value)}
             busy={busy === "push" || busy === "pull" ? busy : null}
             onPush={handlePush}
             onPull={handlePull}

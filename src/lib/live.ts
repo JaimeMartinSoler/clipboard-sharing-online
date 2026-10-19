@@ -3,7 +3,9 @@
  *
  * The channel is downstream-only: the server (a per-room Durable Object)
  * broadcasts `{v:1, type:"update", ciphertext, iv, expiresAt}` frames when a
- * member pushes; content uploads stay on the HTTP API. Everything on the wire
+ * member pushes, plus content-free `roster` (membership changed) and
+ * `{v:1, type:"expiry", expiresAt}` (creator changed the TTL) nudges; content
+ * uploads stay on the HTTP API. Everything on the wire
  * is ciphertext — the zero-knowledge model is unchanged.
  *
  * Auth: browsers cannot set an Authorization header on a WebSocket and a
@@ -33,6 +35,8 @@ export type LiveEvent =
   | { type: "update"; update: LiveUpdate }
   /** Membership changed (join/revoke); re-pull the roster over HTTP. */
   | { type: "roster" }
+  /** The creator changed the room TTL; the room now expires at `expiresAt`. */
+  | { type: "expiry"; expiresAt: number }
   /** Connection lost; a retry is scheduled (attempt counts from 1). */
   | { type: "reconnecting"; attempt: number }
   /** Terminal — the client must NOT reconnect. */
@@ -40,11 +44,13 @@ export type LiveEvent =
 
 /**
  * A frame the server can broadcast on the downstream channel: an `update`
- * (ciphertext to apply) or a data-less `roster` nudge (membership changed).
+ * (ciphertext to apply), a data-less `roster` nudge (membership changed), or an
+ * `expiry` (the creator changed the TTL — only the new timestamp, no content).
  */
 export type LiveFrame =
   | { type: "update"; update: LiveUpdate }
-  | { type: "roster" };
+  | { type: "roster" }
+  | { type: "expiry"; expiresAt: number };
 
 export type LiveClosedReason =
   /** This member was revoked by the creator (close code 4001). */
@@ -107,7 +113,8 @@ export function wsUrl(
 
 /**
  * Parse one incoming downstream frame into a `LiveFrame`. Recognises the
- * data-less `roster` nudge and the content `update`; everything else (e.g. a
+ * data-less `roster` nudge, the `expiry` change, and the content `update`;
+ * everything else (e.g. a
  * "pong" keepalive answer, an unknown version) is an error the caller drops.
  */
 export function parseLiveFrame(data: unknown): Result<LiveFrame> {
@@ -122,6 +129,12 @@ export function parseLiveFrame(data: unknown): Result<LiveFrame> {
   const o = raw as Record<string, unknown>;
   if (o.v !== 1) return err("Unknown version.");
   if (o.type === "roster") return ok({ type: "roster" });
+  if (o.type === "expiry") {
+    if (typeof o.expiresAt !== "number" || !Number.isFinite(o.expiresAt)) {
+      return err("Bad expiresAt.");
+    }
+    return ok({ type: "expiry", expiresAt: o.expiresAt });
+  }
   // Reuse the already-parsed object rather than re-parsing the string.
   const update = parseUpdateObject(o);
   if (!update.ok) return err(update.error);

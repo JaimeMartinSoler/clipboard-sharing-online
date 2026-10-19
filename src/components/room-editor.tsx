@@ -81,8 +81,9 @@ const SYNC_MODE_INFO: Record<
 /**
  * The shared clipboard editor — identical for creator and joiner. Encrypt-then-
  * Push, Pull-then-decrypt, Clear the local text box, Undo/Redo/Copy/Paste
- * locally. The Expiry selector (creator only) sets the TTL sent with the next
- * Push. In live modes the toolbar also shows the connection dot and the
+ * locally. The Expiry selector (creator only) sets the room's TTL on the
+ * server for every terminal and restarts the countdown; each push from any
+ * member re-arms it. In live modes the toolbar also shows the connection dot and the
  * per-client conflict policy ("on update: overwrite / warn").
  *
  * Push and Clear also disable on what is known locally: Push in the live
@@ -288,7 +289,7 @@ export function RoomEditor({
               Expiry
               <Hint
                 className="flex-1 sm:flex-none"
-                text="How long a pushed blob lives on the server. Shorter is safer."
+                text="How long the room lives on the server after each push, for every terminal. Changing it restarts the countdown now. Shorter is safer."
               >
                 <Select
                   value={ttlMs}

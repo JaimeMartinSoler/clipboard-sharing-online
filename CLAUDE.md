@@ -108,11 +108,21 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   keeps the token **in memory only** — strict, no persistence: a reload/closed tab
   forfeits the slot (it still counts against the cap). The creator may **revoke** a
   joiner (deletes the member row) but the slot stays sealed and does not reopen.
+- **Creator-owned TTL.** The room's TTL is a stored room property
+  (`rooms.ttl_ms`, default `TTL_DEFAULT_MS`, returned as `ttlMs` by
+  `POST /api/rooms`). Only the creator changes it, via
+  `PUT /api/rooms/:roomId/ttl` (the Expiry select), which also restarts the
+  expiry now; every push from **any** member re-arms `expires_at = now +
+  ttl_ms`, and a joiner's `ttlMs` is ignored server-side. Live rooms route the
+  change through the DO (it must slide its alarm — the alarm never re-checks
+  D1) and fan out a content-free `{v:1, type:"expiry", expiresAt}` frame so
+  every countdown follows; manual rooms stay socket-free (members see the new
+  expiry on their next Push/Pull).
 - **API surface** (`worker/`): `POST /api/rooms` (`mode:"create"|"join"`,
   optional `syncMode` on create, `capacity` 0–6 where **0 = public room** (default
   2, `400` outside range), atomic slot allocation, `409` when sealed / on a
   create collision, `404` joining a missing room, returns `{token, joined,
-  capacity, sealed, role, syncMode}`); `POST /api/clipboard` (write
+  capacity, sealed, role, syncMode, ttlMs}`); `POST /api/clipboard` (write
   ciphertext+iv + `expires_at` — direct to D1 for manual rooms, through the
   room's DO with broadcast for live rooms); `GET /api/clipboard/:roomId` (fetch
   latest, 404 if missing/expired); `DELETE /api/clipboard/:roomId` (clear);
@@ -121,7 +131,8 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   Bearer membership token** (`401` otherwise). **Creator-only** (`403` for a
   joiner): `GET /api/rooms/:roomId/members` (list `{id, role, joinedAt}`, no
   IP/PII), `DELETE /api/rooms/:roomId/members/:id` (revoke a joiner + close
-  their sockets), `DELETE /api/rooms/:roomId` (nuke room+members+blob + close
+  their sockets), `PUT /api/rooms/:roomId/ttl` (set the room TTL for everyone +
+  restart the expiry), `DELETE /api/rooms/:roomId` (nuke room+members+blob + close
   all sockets). Serve the API under the same custom domain as Pages (`/api/*`
   route) so it is **same-origin** — no CORS; the CSP lists the `wss://` hosts
   explicitly. Document a CORS allowlist fallback if hosted on `*.workers.dev`.
@@ -153,6 +164,7 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   event the app routes through that same Back.
 - **D1 schema.** `rooms`: `room_id` (PK, opaque), `capacity`, `sealed`,
   `sync_mode` (`'manual'|'push'|'typing'`, default `'manual'`),
+  `ttl_ms` (creator-owned TTL, default 600000),
   `ciphertext`/`iv` (nullable until first push), `created_at`, `expires_at`.
   `members`: `id`, `room_id`, `token_hash`, `role`, `joined_at`. `capacity = 0`
   is the **public-room** sentinel (unbounded, never seals). Sealed ⇔
@@ -161,7 +173,8 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   Push is a guarded `UPDATE … WHERE expires_at > now` (never resurrects);
   index `expires_at` and `members.room_id`. Room, members, and blob expire
   together (lazy delete + cron; the DO's alarm closes live sockets at TTL).
-  Migrations: `0001_init.sql`, `0002_roles_sealed.sql`, `0003_sync_mode.sql`.
+  Migrations: `0001_init.sql`, `0002_roles_sealed.sql`, `0003_sync_mode.sql`,
+  `0004_room_ttl.sql`.
 
 ## Conventions
 - TypeScript **strict**, no `any`. Pure logic returns `Result<T>`
