@@ -19,6 +19,8 @@ export interface LiveRoomCallbacks {
   onUpdate: (update: LiveUpdate) => void;
   /** Membership changed (a terminal joined or was revoked); re-pull the roster. */
   onRoster: () => void;
+  /** The creator changed the room TTL; the room now expires at `expiresAt`. */
+  onExpiry: (expiresAt: number) => void;
   /** This member was revoked by the creator (terminal). */
   onRevoked: () => void;
   /** The room was removed or expired (terminal). */
@@ -64,6 +66,9 @@ export function useLiveRoom(
             break;
           case "roster":
             callbacksRef.current.onRoster();
+            break;
+          case "expiry":
+            callbacksRef.current.onExpiry(event.expiresAt);
             break;
           case "reconnecting":
             setStatus("reconnecting");

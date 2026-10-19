@@ -44,12 +44,15 @@ ciphertext it has no way to decrypt.
    and uploaded).
 5. On device B: in a live room the text simply **appears** (decrypted in the
    browser on arrival); in a manual room click **Pull** (the encrypted blob is
-   downloaded and decrypted in the browser). A wrong password simply fails to
-   decrypt — the server gives the same answer either way. In live rooms each
+   downloaded and decrypted in the browser). A wrong password simply lands in a
+   different room or fails to decrypt — the server can't tell a wrong password
+   from a right one. In live rooms each
    terminal can choose what an incoming update does to unsaved local edits:
    **overwrite** (default) or **warn** (keep the edits; Pull loads the update).
 6. The shared blob (and the whole room, with its seal and memberships) expires
-   automatically; **Clear** removes the blob immediately.
+   automatically. **Clear** only empties the local text box; the room
+   creator's **Remove room** deletes the room, its members, and the blob
+   immediately.
 
 > **Strict slots (intentional).** Your membership lives only in the page while
 > it's open. If you reload, close the tab, or open a new browser, that slot is
@@ -76,8 +79,7 @@ ciphertext it has no way to decrypt.
   validated`): e.g. *"Joined as terminal 1 of 2 — waiting for 1 more"*, *"Room
   sealed (2/2) — sharing is locked to these terminals"*, *"Room is sealed — no
   free slot"*, *"Your slot was lost (reload/closed) — locked out until this room
-  expires"*, *"Encrypted & pushed."* (the banner appends a live *"· expires in
-  10 min"* countdown), *"Pulled & decrypted"*,
+  expires"*, *"Encrypted & pushed."*, *"Pulled & decrypted"*,
   *"No data in this room (or wrong password)"*, *"Couldn't decrypt — check the
   password"*.
 - A visible **🔒 End-to-end encrypted** badge and a `/privacy` page explaining
@@ -88,8 +90,15 @@ ciphertext it has no way to decrypt.
 - One input pane, a clear action bar (Push, Pull, Copy, Clear), and exactly one
   always-present status line so the layout never jumps.
 - Controls carry on-hover tooltips; mode-dependent controls are
-  disabled/grayed, never hidden.
-- Show the room's expiry countdown after a successful push/pull.
+  disabled/grayed, never hidden. Controls that would be a known local no-op are
+  disabled too: **Push** in live push-mode rooms while the text equals the last
+  pushed/pulled/applied copy (manual rooms keep it enabled — another device may
+  have overwritten the blob unseen, and a re-push re-arms the room's expiry; "Sync now"
+  in auto-sync rooms also stays enabled), **Clear** while the box is empty.
+- The text box does not soft-wrap: long lines scroll horizontally.
+- Show the room's expiry countdown after a successful push/pull — in the
+  editor heading row (after the sync-mode label and live dot) as an hourglass +
+  zero-padded `MM:SS`, "expires in" explained on hover, red under `01:00`.
 - Never reveal whether a room "exists" beyond what a legitimate user needs: a
   failed pull and a wrong-password pull look the same to the user and identical
   on the wire.
@@ -97,10 +106,13 @@ ciphertext it has no way to decrypt.
 ## Configurable (sane defaults, document them)
 - **Terminals (capacity):** default **2**; clamped to a small range (1–6). Set
   by whoever joins first; the room seals at this count. A creator may instead
-  pick an **open room** (`capacity = 0`): no limit, never seals — trading the
+  pick a **public room** (`capacity = 0`): no limit, never seals — trading the
   seal-on-full protection for unbounded joining on one password.
 - **TTL:** default ~10 minutes; offer a small fixed set (e.g. 1 min / 10 min /
-  1 hour) — shorter is safer.
+  1 hour) — shorter is safer. It is a room property owned by the creator:
+  changing it applies to every terminal at once and restarts the countdown, and
+  every push (from any member) re-arms the expiry from it. Joiners cannot
+  change it — enforced by the server, not just hidden in the UI.
 - **Max payload:** cap the *encrypted* size (e.g. 256 KB) and reject larger
   pushes with a clear error.
 

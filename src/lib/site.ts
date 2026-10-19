@@ -39,12 +39,13 @@ export const SITE_INDEXABLE = isIndexableDeploy(process.env.GITHUB_REF_NAME);
 /**
  * The meta description / OpenGraph description. Written for a search snippet:
  * it names the concrete devices people search for (phone, PC, laptop, tablet)
- * and states the privacy guarantee that differentiates this tool.
+ * and states the privacy guarantee that differentiates this tool. Kept within
+ * the ~160-char snippet Google shows (pages.test.ts enforces it per route).
  */
 export const SITE_DESCRIPTION =
-  "Free online clipboard to instantly share text between your phone, PC, " +
-  "laptop and tablet. End-to-end encrypted — two devices meet on a single " +
-  "password and the server only ever stores ciphertext it cannot read.";
+  "Free online clipboard: share text between phone, PC, laptop and tablet. " +
+  "End-to-end encrypted — the server only stores ciphertext it cannot read. " +
+  "No sign-up.";
 
 /**
  * Long-tail search phrases we want to rank for. `keywords` carries little
@@ -69,17 +70,36 @@ export const SITE_KEYWORDS = [
   "zero-knowledge",
 ];
 
+/** Public source repository — linked from /about, the homepage and /security. */
+export const REPO_URL =
+  "https://github.com/JaimeMartinSoler/clipboard-sharing-online";
+
+/** The person behind the site, for structured data (matches /about). */
+export const SITE_AUTHOR = {
+  name: "Jaime Martín Soler",
+  url: "https://github.com/JaimeMartinSoler",
+} as const;
+
 /**
- * Brand logo (slash + clipboard + padlock, matching the sister site
- * office-tools-online), reused as the default Open Graph / Twitter preview
- * image. The full raster set lives in `public/`: `favicon-32x32.png`,
- * `icon.png` (256), `apple-touch-icon.png` (180) and the header `logo.png`.
+ * First production release (first `develop` → `main` merge, PR #8). A fixed
+ * date, not a build timestamp, so structured data doesn't churn per deploy.
+ */
+export const SITE_PUBLISHED = "2026-07-01";
+
+/**
+ * The 1200×630 social card (`summary_large_image` / Open Graph) — the brand
+ * logo, wordmark and tagline on the light-theme tokens. Link previews are the
+ * app's growth loop (sharing a room link *is* the product), so this must be a
+ * real large card, not the square favicon. `width`/`height` must match the
+ * file; site.test.ts checks it. The favicon set lives alongside it in
+ * `public/`: `favicon-32x32.png`, `icon.png` (256), `apple-touch-icon.png`
+ * (180) and the header `logo.png`.
  */
 export const OG_IMAGE = {
-  url: "/icon.png",
-  width: 256,
-  height: 256,
-  alt: SITE_NAME,
+  url: "/og.png",
+  width: 1200,
+  height: 630,
+  alt: `${SITE_NAME} — end-to-end encrypted text between your devices`,
 } as const;
 
 /** User-facing feature bullets, reused by the manifest and structured data. */
@@ -91,6 +111,14 @@ export const SITE_FEATURES = [
   "Live sync as you type, or manual push and pull",
   "Ephemeral by default — content auto-expires",
 ];
+
+/**
+ * Serialize JSON-LD for an inline `<script type="application/ld+json">`.
+ * Escapes `<` so no string value can ever close the script element early.
+ */
+export function serializeJsonLd(data: Record<string, unknown>): string {
+  return JSON.stringify(data).replace(/</g, "\\u003c");
+}
 
 /**
  * schema.org JSON-LD describing the app as a free web application, so search
@@ -105,7 +133,15 @@ export function webApplicationJsonLd(): Record<string, unknown> {
     url: `${SITE_URL}/`,
     description: SITE_DESCRIPTION,
     image: `${SITE_URL}${OG_IMAGE.url}`,
+    inLanguage: "en",
+    datePublished: SITE_PUBLISHED,
+    author: {
+      "@type": "Person",
+      name: SITE_AUTHOR.name,
+      url: SITE_AUTHOR.url,
+    },
     applicationCategory: "UtilitiesApplication",
+    applicationSubCategory: "Encrypted clipboard sharing",
     operatingSystem: "Any (modern web browser)",
     browserRequirements: "Requires JavaScript. Requires HTML5.",
     isAccessibleForFree: true,

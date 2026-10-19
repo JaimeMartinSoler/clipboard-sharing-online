@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Header } from "@/components/header";
+import { RouteScrollReset } from "@/components/route-scroll-reset";
+import { SiteFooter } from "@/components/site-footer";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import {
@@ -10,6 +12,7 @@ import {
   SITE_NAME,
   SITE_TITLE,
   SITE_URL,
+  serializeJsonLd,
   webApplicationJsonLd,
 } from "@/lib/site";
 import "./globals.css";
@@ -55,7 +58,7 @@ export const metadata: Metadata = {
     images: [OG_IMAGE],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
     images: [OG_IMAGE.url],
@@ -83,18 +86,29 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(webApplicationJsonLd()),
+            __html: serializeJsonLd(webApplicationJsonLd()),
           }}
         />
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           <TooltipProvider delayDuration={300}>
-            <div className="flex h-screen flex-col overflow-hidden">
+            {/* `h-dvh` fits the visible viewport (phones' 100vh overshoots it,
+                making the document itself scrollable), and `overflow-clip`,
+                unlike `overflow-hidden`, is not a scroll container — so a
+                navigation's `scrollIntoView()` can never scroll the header
+                out of view. `app-shell` adds `100vh`/`overflow: hidden`
+                fallbacks for browsers without them (globals.css). */}
+            <div className="app-shell flex h-dvh flex-col overflow-clip">
               <Header />
               {/* `scrollbar-gutter: stable` always reserves the scrollbar's
                   space, so content never shifts horizontally when a scrollbar
                   appears/disappears (e.g. expanding Advanced Settings). */}
               <main className="flex-1 overflow-y-auto p-4 [scrollbar-gutter:stable] md:p-6">
                 {children}
+                {/* Internal links to every page. It follows the page inside
+                    the scroll area, so on `/` it sits below the landing content,
+                    never above the fold. */}
+                <SiteFooter />
+                <RouteScrollReset />
               </main>
             </div>
           </TooltipProvider>

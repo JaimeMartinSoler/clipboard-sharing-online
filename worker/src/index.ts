@@ -8,6 +8,8 @@
  * Stage 3: clipboard routes + size cap + per-IP rate limit + lazy/cron expiry.
  * Bearer-token enforcement and POST /api/rooms are added in stage 4.
  * Issue #7: create/join roles + creator-only room management endpoints.
+ * The room TTL is a stored room property only the creator may change; every
+ * member's push re-arms the expiry from it.
  */
 import { Hono } from "hono";
 import type { Bindings } from "./bindings";
@@ -24,6 +26,7 @@ import {
   listMembers,
   removeMember,
   setClipboard,
+  setRoomTtl,
   sweepExpired,
   type SyncMode,
 } from "./db";
@@ -197,6 +200,16 @@ async function memberRole(
   return getMemberRole(db, roomId, await sha256hex(token));
 }
 
+/** Body of PUT /api/rooms/:roomId/ttl: a positive, finite `ttlMs` (→ 400 otherwise). */
+function parseTtlBody(body: unknown): number | null {
+  if (typeof body !== "object" || body === null) return null;
+  const ttlMs = (body as Record<string, unknown>).ttlMs;
+  if (typeof ttlMs !== "number" || !Number.isFinite(ttlMs) || ttlMs <= 0) {
+    return null;
+  }
+  return ttlMs;
+}
+
 function clampTtl(ttlMs: number | undefined, env: Bindings): number {
   const fallback = Number(env.TTL_DEFAULT_MS);
   const max = Number(env.TTL_MAX_MS);
@@ -304,6 +317,8 @@ app.post("/api/rooms", async (c) => {
     role: result.role,
     // The stored mode — this is how a joiner learns what the creator chose.
     syncMode: result.syncMode,
+    // The stored TTL — seeds the creator's Expiry select.
+    ttlMs: result.ttlMs,
   });
 });
 
@@ -380,6 +395,37 @@ app.delete("/api/rooms/:roomId/members/:memberId", async (c) => {
   return c.json({ ok: true });
 });
 
+// Change the room TTL. Applies to every later push (from any member) and
+// restarts the expiry now, so the countdown reflects the choice immediately.
+// Live rooms route through the DO: it must slide its expiry alarm (which never
+// re-checks D1) and broadcasts the new `expiresAt` to members' countdowns.
+// Manual rooms just write D1 — no socket; members see it on their next
+// Push/Pull, like everything else in a manual room.
+app.put("/api/rooms/:roomId/ttl", async (c) => {
+  const roomId = c.req.param("roomId");
+  const raw: unknown = await c.req.json().catch(() => null);
+  const requested = parseTtlBody(raw);
+  if (requested === null) return c.json({ error: "Invalid request" }, 400);
+  const role = await memberRole(c.env.DB, roomId, c.req.header("Authorization"));
+  if (role === null) return c.json({ error: "Unauthorized" }, 401);
+  if (role !== "creator") return c.json({ error: "Forbidden" }, 403);
+
+  const ttlMs = clampTtl(requested, c.env);
+  const now = Date.now();
+  const meta = await getRoomMeta(c.env.DB, roomId, now);
+  if (!meta) return c.json({ error: "Not found" }, 404);
+  const expiresAt =
+    meta.syncMode === "manual"
+      ? await setRoomTtl(c.env.DB, roomId, ttlMs, now)
+      : await c.env.ROOM.get(c.env.ROOM.idFromName(roomId)).setTtl({
+          roomId,
+          ttlMs,
+          now,
+        });
+  if (expiresAt === null) return c.json({ error: "Not found" }, 404);
+  return c.json({ ok: true, ttlMs, expiresAt });
+});
+
 app.delete("/api/rooms/:roomId", async (c) => {
   const roomId = c.req.param("roomId");
   const role = await memberRole(c.env.DB, roomId, c.req.header("Authorization"));
@@ -404,16 +450,21 @@ app.post("/api/clipboard", async (c) => {
   const token = bearerToken(c.req.header("Authorization"));
   if (token === null) return c.json({ error: "Unauthorized" }, 401);
   const tokenHash = await sha256hex(token);
-  if (!(await isMember(c.env.DB, body.roomId, tokenHash))) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
+  const role = await getMemberRole(c.env.DB, body.roomId, tokenHash);
+  if (role === null) return c.json({ error: "Unauthorized" }, 401);
 
   if (base64urlByteLength(body.ciphertext) > maxCiphertext) {
     return c.json({ error: "Payload too large" }, 413);
   }
 
   const now = Date.now();
-  const expiresAt = now + clampTtl(body.ttlMs, c.env);
+  // The TTL belongs to the room. Only the creator may change it here (the
+  // legacy client path; current clients use PUT …/ttl). A joiner's `ttlMs` is
+  // ignored, so their push re-arms the expiry from the creator's stored TTL.
+  const ttlMs =
+    role === "creator" && body.ttlMs !== undefined
+      ? clampTtl(body.ttlMs, c.env)
+      : null;
   const meta = await getRoomMeta(c.env.DB, body.roomId, now);
   if (!meta) return c.json({ error: "Not found" }, 404);
 
@@ -422,25 +473,25 @@ app.post("/api/clipboard", async (c) => {
   // happen in one serialized turn — every member sees pushes in the same
   // order they were committed. The DO re-runs setClipboard's liveness guard,
   // so a room that expired between the meta read and here still yields 404.
-  const stored =
+  const expiresAt =
     meta.syncMode === "manual"
       ? await setClipboard(
           c.env.DB,
           body.roomId,
           body.ciphertext,
           body.iv,
-          expiresAt,
+          ttlMs,
           now,
         )
       : await c.env.ROOM.get(c.env.ROOM.idFromName(body.roomId)).push({
           roomId: body.roomId,
           ciphertext: body.ciphertext,
           iv: body.iv,
-          expiresAt,
+          ttlMs,
           now,
           pusherTokenHash: tokenHash,
         });
-  if (!stored) return c.json({ error: "Not found" }, 404);
+  if (expiresAt === null) return c.json({ error: "Not found" }, 404);
   return c.json({ ok: true, expiresAt });
 });
 

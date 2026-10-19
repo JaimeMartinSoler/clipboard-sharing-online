@@ -1,10 +1,13 @@
 import { Code, Info, KeyRound, LockKeyhole, Users } from "lucide-react";
 import Link from "next/link";
 
+const LINK_CLASS = "underline underline-offset-2 hover:text-foreground";
+
 /**
- * The reassurance card summarising the app's privacy guarantees, with a link to
- * the full policy. Shared verbatim between the entry view and the room view so
- * the promise stays visible wherever the user is (and lives in one place).
+ * The reassurance card summarising the app's privacy guarantees, with links to
+ * the /privacy and /security pages. Shared verbatim between the entry view and
+ * the room view so the promise stays visible wherever the user is (and lives in
+ * one place).
  */
 export function PrivacyHighlights() {
   return (
@@ -38,12 +41,13 @@ export function PrivacyHighlights() {
       <p className="flex items-start gap-2">
         <Info className="mt-0.5 size-4 shrink-0 text-foreground" />
         <span>
-          For more info check our{" "}
-          <Link
-            href="/privacy"
-            className="underline underline-offset-2 hover:text-foreground"
-          >
-            privacy policy
+          For more info check{" "}
+          <Link href="/privacy/" className={LINK_CLASS}>
+            privacy
+          </Link>{" "}
+          &amp;{" "}
+          <Link href="/security/" className={LINK_CLASS}>
+            security
           </Link>
         </span>
       </p>

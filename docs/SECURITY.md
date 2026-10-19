@@ -6,7 +6,7 @@ does **not**, the residual risks of the password-only design, and the mitigation
 ## Guarantees
 - **The server cannot read your data.** It stores only an opaque `room_id`, the
   AES-GCM `ciphertext`, the `iv`, timestamps, a `capacity` count, a `sync_mode`
-  label, and opaque membership **token hashes**. The password, the derived
+  label, a `ttl_ms` duration, and opaque membership **token hashes**. The password, the derived
   master key, the content key, and the plaintext are computed and used **only
   in the browser** and are **never transmitted**. This holds for live rooms
   too: the WebSocket broadcasts carry exactly the same `{ciphertext, iv}` the
@@ -37,7 +37,7 @@ does **not**, the residual risks of the password-only design, and the mitigation
 - See `docs/ARCHITECTURE.md` for exact info-strings and sizes.
 
 ## Share links keep the password in the URL fragment
-The creator can share an auto-join link (and a QR of it):
+Any member — creator or joiner — can share an auto-join link (and a QR of it):
 `https://<origin>/#p=<base64url(password)>`.
 
 - **Why the fragment.** The secret is placed **after `#`**, in the URL fragment.
@@ -119,13 +119,13 @@ The room creator sets a maximum number of terminals (default 2). Terminals
 **join** to claim a slot; when the room reaches capacity it is **sealed** and no
 further terminal can join *that room instance*.
 
-A creator may instead choose an **open room** (`capacity = 0`, the "Open room"
-toggle): the terminal cap is disabled, the room never seals, and anyone with the
+A creator may instead choose a **public room** (`capacity = 0`, the
+"Private room / Public room" toggle): the terminal cap is disabled, the room never seals, and anyone with the
 password can keep joining for the room's lifetime. This is a deliberate
 convenience that **forgoes the seal-on-full protection below** — it does not
 weaken the content E2EE, the bearer-token gate on every operation, the ciphertext
-size cap, or the per-IP rate limit. Prefer a sealed room when you want the
-later-compromise protection; use an open room only when unbounded sharing on a
+size cap, or the per-IP rate limit. Prefer a private (sealed) room when you want the
+later-compromise protection; use a public room only when unbounded sharing on a
 single strong password is the goal.
 
 ### What it buys
@@ -202,7 +202,7 @@ single strong password is the goal.
   `Sec-WebSocket-Protocol` header (never the URL), validated and stripped in
   the Worker — only the hash may reach the Durable Object or a socket tag.
 - Allocate slots **atomically** (D1 transaction) so concurrent joins can never
-  over-seal past `capacity`. An open room (`capacity = 0`) bypasses the count
+  over-seal past `capacity`. A public room (`capacity = 0`) bypasses the count
   guard and never sets `sealed`; every other invariant here still holds.
 - Enforce roles at the **Worker/DB layer**, not just the view: creator-only
   endpoints (list members, revoke joiner, delete room) verify the Bearer token

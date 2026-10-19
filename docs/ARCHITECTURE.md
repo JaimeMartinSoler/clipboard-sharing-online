@@ -59,7 +59,7 @@ terminal cap is an access-control layer *on top of* the encryption (see
    ├─ src/room-do.ts       # RoomDO: per-room WebSocket fanout (hibernated)
    ├─ src/bindings.ts      # env bindings shared by the app and the DO
    ├─ src/db.ts            # D1 queries
-   ├─ migrations/          # 0001_init, 0002_roles_sealed, 0003_sync_mode
+   ├─ migrations/          # 0001_init, 0002_roles_sealed, 0003_sync_mode, 0004_room_ttl
    ├─ wrangler.toml        # D1 + DO bindings, route, cron trigger, vars
    └─ test/                # @cloudflare/vitest-pool-workers tests
 ```
@@ -96,11 +96,14 @@ transmitted except where noted.
 `decrypt(contentKey, {ciphertext, iv}) → Result<string>`. No React/DOM imports.
 
 ### Share links & auto-join (fragment only)
-The **Share options** (a `ShareControls` section shown below the editor to
+The **Share clipboard room** (a `ShareControls` section shown below the editor to
 **every** member — creator and joiners alike, so anyone can invite another
 device or re-copy the password) offer **Copy password** (to clipboard, without
 revealing it), **Show password** (reveal inline), **Share link**, and **Show
-QR**, each rendered with the icon pinned left and the label centered. A short
+QR**, each rendered with the icon pinned left and the label centered —
+primary-filled, with the two Show toggles flipping to `outline` while their
+reveal is open. The creator's copy plays a one-time double pump on entering the
+room they just created, to point at the next step (joiners don't). A short
 warning under the heading reminds that anyone with the password or link can
 join. The **Share link** button opens the native share sheet
 (`navigator.share` → WhatsApp, Messages, Copy, …) on mobile and falls back to
@@ -112,7 +115,13 @@ beaconed by Cloudflare Web Analytics. `base64url` is transport encoding only
 (reversible): **sharing the link is sharing decryption ability**, exactly the
 intent. On load the app reads `location.hash`, auto-joins (`mode:"join"`), and
 immediately **scrubs the fragment** from the address bar (`history.replaceState`)
-so it doesn't linger in history or on screen. The QR is produced by a vendored,
+so it doesn't linger in history or on screen. A **first-time visitor** (no
+`cso.visited.v1` localStorage marker — a non-secret "1", read/written via the
+total, corruption-safe helpers in `src/lib/preferences.ts`) who arrives this way
+also sees a one-line, dismissible explainer above the editor: what the site is,
+that text is end-to-end encrypted, and a "How it works" link that opens in a new
+tab (leaving the tab would drop the in-memory membership token). It renders
+alongside the join, never before it; a returning visitor sees nothing. The QR is produced by a vendored,
 dependency-free encoder (`src/lib/qr.ts`) rendered as **inline SVG** — no network,
 CSP-safe. See `src/lib/room-link.ts` and `docs/SECURITY.md`.
 
@@ -123,9 +132,10 @@ the Pages origin.
 
 | Method & path                | Body / params · auth       | Behaviour |
 | ---------------------------- | -------------------------- | --------- |
-| `POST /api/rooms`            | `{ roomId, mode, capacity?, syncMode? }` | Obtain a slot. `mode:"create"` makes the caller the **creator** and sets `capacity` (default 2, clamped 1–10) and `syncMode` (`manual` \| `push` \| `typing`, default `manual` so old clients keep legacy semantics); `mode:"join"` (default if omitted) claims a **joiner** slot in an existing room. Slot granted only while `sealed=0 AND members < capacity`. Returns `{ token, joined, capacity, sealed, role, syncMode }` — the stored mode, so a joiner learns the creator's choice. `409` when sealed or on a create collision (`{exists:true}`); `404` when joining a room that doesn't exist; `400` on bad `mode`/`capacity`/`syncMode`. |
-| `POST /api/clipboard`        | `{ roomId, ciphertext, iv }` · Bearer token | Validate token↔room, shape, and size cap; rate-limit. **Manual rooms**: write the blob to D1 directly with `expires_at=now+TTL`. **Live rooms**: the validated write is executed *inside the room's Durable Object*, which broadcasts `{ciphertext, iv, expiresAt}` to every other member's socket in the same serialized turn (the pusher's own sockets are skipped — echo suppression by token hash). Returns `{ ok, expiresAt }`. `401` without a valid token; `404` when the room is missing/expired. |
-| `GET /api/rooms/:roomId/ws`  | Upgrade + `Sec-WebSocket-Protocol: cso.v1, cso.bearer.<token>` | **Live rooms only.** The bearer token rides in the subprotocol list (browsers can't set Authorization on a WebSocket; a query param would leak the raw token into edge logs). The Worker validates it against `members.token_hash`, **strips it**, and forwards the upgrade to the room's DO with only the token hash. `101` echoes subprotocol `cso.v1`. `426` without Upgrade, `401` bad/missing token, `404` missing/expired room, `409` manual room. Server→client frames: `{v:1, type:"update", ciphertext, iv, expiresAt}`; client→server only `"ping"` (auto-answered `"pong"` without waking the hibernated DO). Close codes: **4001** revoked, **4004** room gone/expired (terminal — the client must not reconnect). |
+| `POST /api/rooms`            | `{ roomId, mode, capacity?, syncMode? }` | Obtain a slot. `mode:"create"` makes the caller the **creator** and sets `capacity` (default 2, clamped 1–10) and `syncMode` (`manual` \| `push` \| `typing`, default `manual` so old clients keep legacy semantics); `mode:"join"` (default if omitted) claims a **joiner** slot in an existing room. Slot granted only while `sealed=0 AND members < capacity`. Returns `{ token, joined, capacity, sealed, role, syncMode, ttlMs }` — the stored mode, so a joiner learns the creator's choice, and the stored TTL (default `TTL_DEFAULT_MS`), which seeds the creator's Expiry select. `409` when sealed or on a create collision (`{exists:true}`); `404` when joining a room that doesn't exist; `400` on bad `mode`/`capacity`/`syncMode`. |
+| `POST /api/clipboard`        | `{ roomId, ciphertext, iv }` · Bearer token | Validate token↔room, shape, and size cap; rate-limit. The expiry is re-armed from the room's stored TTL — `expires_at = now + rooms.ttl_ms`, whoever pushes. (A `ttlMs` field is still honoured, clamped, from the **creator** only — the legacy client path; a joiner's is ignored.) **Manual rooms**: write the blob to D1 directly. **Live rooms**: the validated write is executed *inside the room's Durable Object*, which broadcasts `{ciphertext, iv, expiresAt}` to every other member's socket in the same serialized turn (the pusher's own sockets are skipped — echo suppression by token hash). Returns `{ ok, expiresAt }`. `401` without a valid token; `404` when the room is missing/expired. |
+| `GET /api/rooms/:roomId/ws`  | Upgrade + `Sec-WebSocket-Protocol: cso.v1, cso.bearer.<token>` | **Live rooms only.** The bearer token rides in the subprotocol list (browsers can't set Authorization on a WebSocket; a query param would leak the raw token into edge logs). The Worker validates it against `members.token_hash`, **strips it**, and forwards the upgrade to the room's DO with only the token hash. `101` echoes subprotocol `cso.v1`. `426` without Upgrade, `401` bad/missing token, `404` missing/expired room, `409` manual room. Server→client frames: `{v:1, type:"update", ciphertext, iv, expiresAt}`, the data-less `{v:1, type:"roster"}`, and `{v:1, type:"expiry", expiresAt}` (creator changed the TTL); client→server only `"ping"` (auto-answered `"pong"` without waking the hibernated DO). Close codes: **4001** revoked, **4004** room gone/expired (terminal — the client must not reconnect). |
+| `PUT /api/rooms/:roomId/ttl` | `{ ttlMs }` · Bearer token | **Creator-only.** Store the room TTL (clamped to `TTL_MAX_MS`) and restart the expiry: `expires_at = now + ttlMs`, guarded by `expires_at > now` (never resurrects). Live rooms route it through the DO, which slides its alarm and broadcasts `{v:1, type:"expiry", expiresAt}` to every socket; manual rooms write D1 only (members see it on their next Push/Pull). Returns `{ ok, ttlMs, expiresAt }`. `400` non-positive/non-numeric `ttlMs`, `401` non-member, `403` joiner, `404` missing/expired room. |
 | `GET /api/clipboard/:roomId` | path `roomId` · Bearer token | Validate token↔room. Select where `room_id=? AND expires_at>now`. If expired, lazy-delete and return 404. Returns `{ ciphertext, iv, expiresAt }` or 404. `401` without a valid token. |
 | `DELETE /api/clipboard/:roomId` | path `roomId` · Bearer token | Clear the blob. Always returns 204 (no existence oracle). `401` without a valid token. |
 | `GET /api/rooms/:roomId/members` | path `roomId` · Bearer token | **Creator-only.** List members `[{ id, role, joinedAt }]` (no IP/PII). `401` non-member, `403` joiner. |
@@ -140,14 +150,15 @@ validation, and uniform error responses that don't leak room existence.
 - **Addressing & lifecycle.** `idFromName(roomId)`; created lazily on the first
   live-room socket or push — a `manual` room never instantiates one. The DO
   stores **no content**: its only durable state is an alarm at the room's
-  `expires_at` (slid forward by connects and pushes), which closes all sockets
+  `expires_at` (slid by connects, pushes, and TTL changes — in either
+  direction, since the alarm never re-checks D1), which closes all sockets
   with `4004` when the room dies. D1 remains the single source of truth.
 - **Hibernation.** Sockets are accepted with `ctx.acceptWebSocket()` and tagged
   (`serializeAttachment`) with the member's token **hash**; keepalive pings are
   answered by `setWebSocketAutoResponse`. An idle room is evicted from memory
   while its sockets stay connected, so it accrues no duration billing.
 - **Write path.** For live rooms the Worker validates everything (auth, shape,
-  size, TTL clamp) then calls the DO, which runs the same D1 `UPDATE … WHERE
+  size, creator-only TTL override) then calls the DO, which runs the same D1 `UPDATE … WHERE
   expires_at > now` guard and broadcasts `{v:1, type:"update", …}` in one
   serialized turn — every member observes pushes in commit order, and an expired
   room can't be resurrected.
@@ -182,8 +193,8 @@ validation, and uniform error responses that don't leak room existence.
   slot is granted only when `sealed=0 AND (capacity=0 OR COUNT(members WHERE
   room_id) < capacity)`; two terminals racing for the last slot cannot both win
   (no over-seal, no TOCTOU).
-- **Open rooms (`capacity = 0`).** A creator can opt out of the terminal cap
-  entirely (the "Open room" toggle). `capacity = 0` bypasses the join count check
+- **Public rooms (`capacity = 0`).** A creator can opt out of the terminal cap
+  entirely (the "Private room / Public room" toggle in Advanced Settings). `capacity = 0` bypasses the join count check
   and the seal step never fires (`… AND capacity > 0`), so `sealed` stays `0` and
   the room admits unlimited terminals for its lifetime. This relaxes only the
   seal-on-full access layer; the content E2EE, bearer tokens, size cap, and rate
@@ -212,7 +223,7 @@ validation, and uniform error responses that don't leak room existence.
 -- worker/migrations/0001_init.sql
 CREATE TABLE IF NOT EXISTS rooms (
   room_id    TEXT    PRIMARY KEY,   -- opaque, client-derived (see crypto)
-  capacity   INTEGER NOT NULL,      -- max terminals; default 2, 1–6; 0 = open (unbounded, never seals)
+  capacity   INTEGER NOT NULL,      -- max terminals; default 2, 1–6; 0 = public (unbounded, never seals)
   ciphertext TEXT,                  -- base64url AES-GCM ciphertext (nullable until first push)
   iv         TEXT,                  -- base64url 96-bit nonce (nullable until first push)
   created_at INTEGER NOT NULL,      -- epoch ms
@@ -233,11 +244,14 @@ ALTER TABLE members ADD COLUMN role   TEXT    NOT NULL DEFAULT 'joiner'; -- 'cre
 
 -- worker/migrations/0003_sync_mode.sql  (live sync)
 ALTER TABLE rooms ADD COLUMN sync_mode TEXT NOT NULL DEFAULT 'manual'; -- 'manual' | 'push' | 'typing'
+
+-- worker/migrations/0004_room_ttl.sql  (creator-owned TTL)
+ALTER TABLE rooms ADD COLUMN ttl_ms INTEGER NOT NULL DEFAULT 600000;   -- creator-set; every push re-arms expires_at = now + ttl_ms
 ```
 One `rooms` row per room (latest clipboard only) plus one `members` row per
 joined terminal — the first being the `creator`. A room is **sealed** once
 `rooms.sealed = 1` (set when `capacity > 0 AND COUNT(members) >= capacity`, then
-permanent so a removed joiner never reopens a slot); an **open room**
+permanent so a removed joiner never reopens a slot); a **public room**
 (`capacity = 0`) never seals. `ciphertext`/`iv` are null
 between joining and the first push. D1's primary gives strongly consistent
 reads, so a Push — and a freshly allocated slot — is visible to an immediate

@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   coercePreferences,
   DEFAULT_PREFERENCES,
+  hasVisitedBefore,
   loadPreferences,
+  recordVisit,
   savePreferences,
   type UiPreferences,
 } from "./preferences";
@@ -38,8 +40,8 @@ describe("coercePreferences", () => {
   });
 
   it("keeps valid fields and defaults the rest (partial blob)", () => {
-    const got = coercePreferences({ showPassword: false, capacity: 5 });
-    expect(got.showPassword).toBe(false);
+    const got = coercePreferences({ showPassword: true, capacity: 5 });
+    expect(got.showPassword).toBe(true);
     expect(got.capacity).toBe(5);
     // Untouched fields fall back to defaults.
     expect(got.passwordKind).toBe(DEFAULT_PREFERENCES.passwordKind);
@@ -52,7 +54,7 @@ describe("coercePreferences", () => {
     expect(coercePreferences({ capacity: 7 }).capacity).toBe(2);
     expect(coercePreferences({ capacity: 2.5 }).capacity).toBe(2);
     expect(coercePreferences({ passwordKind: "weird" }).passwordKind).toBe(
-      "simple",
+      "safer",
     );
     expect(coercePreferences({ syncMode: "bogus" }).syncMode).toBe("push");
   });
@@ -60,6 +62,13 @@ describe("coercePreferences", () => {
   it("accepts every valid sync mode", () => {
     expect(coercePreferences({ syncMode: "manual" }).syncMode).toBe("manual");
     expect(coercePreferences({ syncMode: "typing" }).syncMode).toBe("typing");
+  });
+});
+
+describe("DEFAULT_PREFERENCES", () => {
+  it("seeds a hidden, long (safer) password", () => {
+    expect(DEFAULT_PREFERENCES.passwordKind).toBe("safer");
+    expect(DEFAULT_PREFERENCES.showPassword).toBe(false);
   });
 });
 
@@ -83,7 +92,7 @@ describe("loadPreferences / savePreferences", () => {
   it("never persists a password field", () => {
     const storage = fakeStorage();
     withWindow(storage, () => {
-      savePreferences({ ...DEFAULT_PREFERENCES, passwordKind: "safer" });
+      savePreferences({ ...DEFAULT_PREFERENCES, passwordKind: "simple" });
     });
     const raw = storage.getItem("cso.ui.v1") ?? "";
     expect(raw).not.toContain("password\":");
@@ -121,5 +130,54 @@ describe("loadPreferences / savePreferences", () => {
     } finally {
       delete (globalThis as { window?: unknown }).window;
     }
+  });
+});
+
+describe("hasVisitedBefore / recordVisit", () => {
+  it("reads as a first visit until a visit is recorded", () => {
+    const storage = fakeStorage();
+    withWindow(storage, () => {
+      expect(hasVisitedBefore()).toBe(false);
+      recordVisit();
+      expect(hasVisitedBefore()).toBe(true);
+    });
+  });
+
+  it("uses its own key, independent of the UI preferences blob", () => {
+    const storage = fakeStorage();
+    withWindow(storage, () => {
+      savePreferences(DEFAULT_PREFERENCES);
+      expect(hasVisitedBefore()).toBe(false);
+      recordVisit();
+    });
+    expect(storage.getItem("cso.visited.v1")).toBe("1");
+    expect(storage.getItem("cso.ui.v1")).not.toContain("visited");
+  });
+
+  it("treats a corrupt marker as a first visit", () => {
+    withWindow(fakeStorage({ "cso.visited.v1": "{garbage" }), () => {
+      expect(hasVisitedBefore()).toBe(false);
+    });
+  });
+
+  it("is a first visit with no window (SSR)", () => {
+    expect(hasVisitedBefore()).toBe(false);
+    expect(() => recordVisit()).not.toThrow();
+  });
+
+  it("never throws when storage is blocked", () => {
+    const throwing = {
+      getItem: () => {
+        throw new Error("blocked");
+      },
+      setItem: () => {
+        throw new Error("blocked");
+      },
+      removeItem: () => undefined,
+    };
+    withWindow(throwing, () => {
+      expect(hasVisitedBefore()).toBe(false);
+      expect(() => recordVisit()).not.toThrow();
+    });
   });
 });

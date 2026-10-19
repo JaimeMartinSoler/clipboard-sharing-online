@@ -33,8 +33,9 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   (lazy-delete on read + a cleanup cron). Do not add long-lived persistence.
 - **HTTPS only, strict CSP.** `connect-src` allows only `'self'`/the API origin
   (including its explicit same-origin `wss://` hosts for live sync — never a
-  bare `wss:`) and the Cloudflare Web Analytics origin. No third-party egress
-  of any kind.
+  bare `wss:`) and the Cloudflare Web Analytics origin. No other third-party
+  egress of any kind (public copy must name the analytics beacon when it says
+  so).
 - **Bound the blast radius.** Enforce a max ciphertext size and per-IP rate
   limiting on the API. Text only in v1 — no file/blob upload.
 - **Cap is layered on top of crypto, never instead of it.** Membership tokens are
@@ -95,8 +96,9 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   room (`mode:"create"`, becomes the sole `creator`, sets `capacity`, default 2,
   clamped 1–6); others **join** (`mode:"join"`, `joiner`). When full the room is
   **sealed** (`rooms.sealed=1`, set atomically, **never reset**) — no further
-  join, ever, for that room instance. A creator may instead make an **open room**
-  (`capacity = 0`, the "Open room" toggle in Advanced Settings): no terminal
+  join, ever, for that room instance. A creator may instead make a **public room**
+  (`capacity = 0`, the "Private room / Public room" toggle in Advanced Settings; the
+  capped, seal-on-full default is the **private room**): no terminal
   limit, `sealed` stays `0` forever, anyone with the password can keep joining.
   This only relaxes the seal-on-full access layer — the content E2EE, membership
   tokens, size cap, and rate limit are unchanged. This is a defense-in-depth
@@ -106,11 +108,21 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   keeps the token **in memory only** — strict, no persistence: a reload/closed tab
   forfeits the slot (it still counts against the cap). The creator may **revoke** a
   joiner (deletes the member row) but the slot stays sealed and does not reopen.
+- **Creator-owned TTL.** The room's TTL is a stored room property
+  (`rooms.ttl_ms`, default `TTL_DEFAULT_MS`, returned as `ttlMs` by
+  `POST /api/rooms`). Only the creator changes it, via
+  `PUT /api/rooms/:roomId/ttl` (the Expiry select), which also restarts the
+  expiry now; every push from **any** member re-arms `expires_at = now +
+  ttl_ms`, and a joiner's `ttlMs` is ignored server-side. Live rooms route the
+  change through the DO (it must slide its alarm — the alarm never re-checks
+  D1) and fan out a content-free `{v:1, type:"expiry", expiresAt}` frame so
+  every countdown follows; manual rooms stay socket-free (members see the new
+  expiry on their next Push/Pull).
 - **API surface** (`worker/`): `POST /api/rooms` (`mode:"create"|"join"`,
-  optional `syncMode` on create, `capacity` 0–6 where **0 = open room** (default
+  optional `syncMode` on create, `capacity` 0–6 where **0 = public room** (default
   2, `400` outside range), atomic slot allocation, `409` when sealed / on a
   create collision, `404` joining a missing room, returns `{token, joined,
-  capacity, sealed, role, syncMode}`); `POST /api/clipboard` (write
+  capacity, sealed, role, syncMode, ttlMs}`); `POST /api/clipboard` (write
   ciphertext+iv + `expires_at` — direct to D1 for manual rooms, through the
   room's DO with broadcast for live rooms); `GET /api/clipboard/:roomId` (fetch
   latest, 404 if missing/expired); `DELETE /api/clipboard/:roomId` (clear);
@@ -119,39 +131,50 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   Bearer membership token** (`401` otherwise). **Creator-only** (`403` for a
   joiner): `GET /api/rooms/:roomId/members` (list `{id, role, joinedAt}`, no
   IP/PII), `DELETE /api/rooms/:roomId/members/:id` (revoke a joiner + close
-  their sockets), `DELETE /api/rooms/:roomId` (nuke room+members+blob + close
+  their sockets), `PUT /api/rooms/:roomId/ttl` (set the room TTL for everyone +
+  restart the expiry), `DELETE /api/rooms/:roomId` (nuke room+members+blob + close
   all sockets). Serve the API under the same custom domain as Pages (`/api/*`
   route) so it is **same-origin** — no CORS; the CSP lists the `wss://` hosts
   explicitly. Document a CORS allowlist fallback if hosted on `*.workers.dev`.
   Local dev: Next's rewrite proxy can't carry WS upgrades, so `live.ts`
   connects straight to `ws://127.0.0.1:8787` on localhost.
-- **Share links / auto-join.** The **Share options** (`ShareControls`, shown
+- **Share links / auto-join.** The **Share clipboard room** section (`ShareControls`, shown
   below the editor to **every** member — creator and joiners — so anyone can
   invite another device) hold Copy password / Show password / Share link / Show
   QR (icon-left, centered label), plus a short "anyone with the password or link
-  can join" warning. The Share link button uses the native share sheet
+  can join" warning. The four buttons are primary-filled; the Show password /
+  Show QR toggles flip to `outline` while their reveal is open ("Hide …"). On
+  entering a room they just created, the **creator** (only) sees the heading and
+  buttons play a double pump (`ATTENTION_BEAT` in `src/lib/motion.ts`). The Share link button uses the native share sheet
   (`navigator.share`, the `share-2` icon) on mobile and falls back to copy on
   desktop; it and the QR encode `https://<origin>/#p=<base64url(password)>`. The
   password rides in the URL **fragment only** — never the path/query, which would
   leak it to the edge, analytics, and logs. The app auto-joins on load then
-  scrubs the fragment. The QR uses a vendored, dependency-free encoder
+  scrubs the fragment. A **first-time visitor** arriving that way (no
+  `cso.visited.v1` marker, read/written by `hasVisitedBefore`/`recordVisit` in
+  `preferences.ts`) also gets a one-line, dismissible `FirstVisitExplainer`
+  above the editor — what the site is, that it's E2E encrypted, and a "How it
+  works" link opened in a **new tab** (navigating away would forfeit the
+  in-memory slot). It never delays the join; returning visitors see nothing. The QR uses a vendored, dependency-free encoder
   (`src/lib/qr.ts`) as inline SVG. Room administration (roster + Remove room)
-  stays creator-only in the `CreatorPanel`, rendered below the Share options.
+  stays creator-only in the `CreatorPanel`, rendered below the Share clipboard room section.
   Clicking the header title/logo (or the browser Back button) returns to the
   entry view: entering a room pushes a history entry (`ClipboardApp`) so Back
   pops home instead of leaving the site, and the header dispatches a `cso:home`
   event the app routes through that same Back.
 - **D1 schema.** `rooms`: `room_id` (PK, opaque), `capacity`, `sealed`,
   `sync_mode` (`'manual'|'push'|'typing'`, default `'manual'`),
+  `ttl_ms` (creator-owned TTL, default 600000),
   `ciphertext`/`iv` (nullable until first push), `created_at`, `expires_at`.
   `members`: `id`, `room_id`, `token_hash`, `role`, `joined_at`. `capacity = 0`
-  is the **open-room** sentinel (unbounded, never seals). Sealed ⇔
+  is the **public-room** sentinel (unbounded, never seals). Sealed ⇔
   `rooms.sealed=1` (set when member count first ≥ capacity *and* `capacity > 0`;
   write-once).
   Push is a guarded `UPDATE … WHERE expires_at > now` (never resurrects);
   index `expires_at` and `members.room_id`. Room, members, and blob expire
   together (lazy delete + cron; the DO's alarm closes live sockets at TTL).
-  Migrations: `0001_init.sql`, `0002_roles_sealed.sql`, `0003_sync_mode.sql`.
+  Migrations: `0001_init.sql`, `0002_roles_sealed.sql`, `0003_sync_mode.sql`,
+  `0004_room_ttl.sql`.
 
 ## Conventions
 - TypeScript **strict**, no `any`. Pure logic returns `Result<T>`
@@ -166,17 +189,39 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   aesthetic, the single always-on `StatusBanner`
   (`error > warning > info > validated`), on-hover `Hint` tooltips, a visible
   lock-icon "End-to-end encrypted — your password never leaves this browser"
-  badge, a header "100% encrypted" pill badge + About pill (same responsive
+  badge, header "100% encrypted" (→ `/privacy`) + About pills (same responsive
   format as `office-tools-online`: icon-only on phones, text from `md:` up),
   a `/privacy` page, and an `/about` page. As a single-tool app, drop the
   multi-tool sidebar/registry scaffolding.
+- **Content pages & SEO.** Every indexable route is registered once in
+  `src/lib/pages.ts` (`PAGES`: path, final `<title>` ≤ 60 chars, description
+  ≤ 160 chars, nav label, sitemap hints). Inner pages export
+  `metadata = pageMetadata("<path>")`; `sitemap.ts` and the site-wide
+  `SiteFooter` (internal links only, in `PAGES` order, rendered inside `<main>`
+  after the page) read the same list. `pages.test.ts` / `sitemap.test.ts` enforce uniqueness, lengths, and
+  that sitemap routes ⇔ `page.tsx` files. Landing pages (`/share-text-between-phone-and-pc/`,
+  `/security/`) use the
+  `ContentPage`/`ContentSection`/`OpenClipboardButton` blocks. Pages scroll
+  inside `<main>`, not the document, so the shell is `h-dvh overflow-clip`
+  (never `overflow-hidden`, which Next's navigation `scrollIntoView()` can
+  scroll, hiding the header; `.app-shell` in `globals.css` adds `@supports`
+  fallbacks to `100vh`/`overflow: hidden` for older Safari) and
+  `RouteScrollReset` starts every route at the top (except `#fragment` links). **The homepage entry
+  view must stay the only thing above the fold**: `page.tsx` wraps `ClipboardApp`
+  in `min-h-full` (resolved against the fixed-height `<main>`), and
+  `LandingContent` + the footer follow below it. The homepage FAQ and its
+  `FAQPage` JSON-LD are both built from `src/lib/faq.ts` (`faq.test.ts` renders
+  the component and asserts they match). Copy must only claim what the code
+  does — the fixed-salt caveat and the analytics beacon are stated, not hidden.
 - **Entry view** puts the Create/Join buttons on top and tucks the room options
-  (Sealed/Open toggle, Terminals, Sharing mode) under a collapsed-by-default
+  (Private/Public room toggle, Terminals, Sharing mode) under a collapsed-by-default
   **Advanced Settings** panel — simple by default, configurable on demand.
 - **Entry-view UI preferences persist** to `localStorage` via the pure,
   unit-tested `src/lib/preferences.ts` (namespaced `cso.ui.v1`): the last
   password *generator style*, show/hide, the Advanced Settings open state, and
-  its choices (sealed/open, capacity, sync mode). The **password itself is never
+  its choices (private/public, capacity, sync mode). Defaults: a **Safer** (long)
+  generated password, **hidden** — the common path is create → share the
+  link/QR → done. The **password itself is never
   stored** — only the generator kind, used to reseed a fresh one. Theme is
   persisted separately by `next-themes`. Reads are total (SSR/corruption-safe →
   defaults); prefs are applied in a post-hydration effect so SSR markup matches.

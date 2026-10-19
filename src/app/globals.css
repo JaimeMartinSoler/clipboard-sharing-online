@@ -93,3 +93,19 @@
     -webkit-font-smoothing: antialiased;
   }
 }
+
+/* Fallbacks for the layout shell's `h-dvh overflow-clip` (layout.tsx) on
+   browsers without them (`dvh` < iOS 15.4, `overflow: clip` < Safari 16).
+   Without these the declarations are dropped, the shell grows to its content
+   and the document scrolls. `@supports` (not a duplicated declaration) so a
+   CSS minifier can't collapse the fallback away. */
+@supports not (height: 100dvh) {
+  .app-shell {
+    height: 100vh;
+  }
+}
+@supports not (overflow: clip) {
+  .app-shell {
+    overflow: hidden;
+  }
+}
