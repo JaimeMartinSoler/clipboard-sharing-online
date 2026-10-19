@@ -96,7 +96,7 @@ transmitted except where noted.
 `decrypt(contentKey, {ciphertext, iv}) → Result<string>`. No React/DOM imports.
 
 ### Share links & auto-join (fragment only)
-The **Share options** (a `ShareControls` section shown below the editor to
+The **Share clipboard room** (a `ShareControls` section shown below the editor to
 **every** member — creator and joiners alike, so anyone can invite another
 device or re-copy the password) offer **Copy password** (to clipboard, without
 revealing it), **Show password** (reveal inline), **Share link**, and **Show

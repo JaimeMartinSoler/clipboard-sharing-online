@@ -113,7 +113,7 @@ export function ShareControls({
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <h2 data-attention className="text-sm font-medium">
-            Share options
+            Share clipboard room
           </h2>
         </div>
         <p className="text-xs text-muted-foreground">
