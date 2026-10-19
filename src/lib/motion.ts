@@ -76,7 +76,7 @@ export const FIELD_BEAT: [Keyframe[], KeyframeAnimationOptions] = [
 ];
 
 /**
- * A double "pump" that draws the creator's eye to the Share options on entering
+ * A double "pump" that draws the creator's eye to the Share section on entering
  * a room they just created: BUTTON_BEAT's press-and-rebound at 3× the amplitude
  * (it must be noticed, not just felt), played twice after a short delay so it
  * lands once the room view has painted. Transforms never reflow the layout; at

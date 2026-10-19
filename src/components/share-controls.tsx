@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Hint } from "@/components/hint";
 import { Button } from "@/components/ui/button";
 import { Collapse } from "@/components/ui/collapse";
+import { isDesktopPointer } from "@/lib/device";
 import { ATTENTION_BEAT, playAnimation } from "@/lib/motion";
 import { qrSvg } from "@/lib/qr";
 import { buildShareUrl } from "@/lib/room-link";
@@ -23,7 +24,8 @@ import { cn } from "@/lib/utils";
  *   reading it aloud or retyping.
  * - **Share link** — opens the native share sheet on mobile (WhatsApp, copy,
  *   …), falling back to copying the auto-join link on desktop.
- * - **Show QR** — renders a scannable QR of the same link for phones.
+ * - **Show QR** — renders a scannable QR of the same link for phones. Open by
+ *   default on a PC (mouse/trackpad pointer), collapsed on phones/tablets.
  *
  * The buttons are primary-filled to read as the next step after creating a
  * room; the two reveal toggles flip to the outline style while their reveal is
@@ -39,7 +41,13 @@ export function ShareControls({
   /** Play the one-time double pump on mount (creator only). */
   attention?: boolean;
 }) {
-  const [showQr, setShowQr] = useState(false);
+  // On a PC the QR starts open — the likely next step is scanning it with a
+  // phone. Phones/tablets start collapsed (they'd use Share link instead).
+  // Safe as a lazy initializer: this section only mounts client-side, after a
+  // room is joined, so there's no SSR markup to mismatch.
+  const [showQr, setShowQr] = useState(() =>
+    isDesktopPointer(typeof window === "undefined" ? undefined : window),
+  );
   const [showPassword, setShowPassword] = useState(false);
   const [passwordCopied, setPasswordCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -113,7 +121,7 @@ export function ShareControls({
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <h2 data-attention className="text-sm font-medium">
-            Share options
+            Share
           </h2>
         </div>
         <p className="text-xs text-muted-foreground">
@@ -190,7 +198,7 @@ export function ShareControls({
 }
 
 /**
- * A Share-options button: the icon is pinned to the left and the label is
+ * A Share-section button: the icon is pinned to the left and the label is
  * centered in the remaining width (`justify-start` + a flex-1 centered label),
  * so the four buttons read as a tidy column of centered labels. Filled
  * (`default`) normally; `revealed` (a Show toggle whose reveal is open) swaps

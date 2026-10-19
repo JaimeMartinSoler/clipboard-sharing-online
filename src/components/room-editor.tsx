@@ -201,7 +201,7 @@ export function RoomEditor({
       {/* Long lines scroll horizontally instead of wrapping (`wrap="off"` for
           Safari, plus `whitespace-pre`), so code, URLs and tables keep their
           shape. Portrait phones get one text line less height (13.5rem vs
-          15rem) so the Share options below fit on the same screen. */}
+          15rem) so the Share section below fits on the same screen. */}
       <textarea
         value={text}
         onChange={(e) => onTextChange(e.target.value)}

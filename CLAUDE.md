@@ -127,12 +127,14 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   explicitly. Document a CORS allowlist fallback if hosted on `*.workers.dev`.
   Local dev: Next's rewrite proxy can't carry WS upgrades, so `live.ts`
   connects straight to `ws://127.0.0.1:8787` on localhost.
-- **Share links / auto-join.** The **Share options** (`ShareControls`, shown
+- **Share links / auto-join.** The **Share** section (`ShareControls`, shown
   below the editor to **every** member — creator and joiners — so anyone can
   invite another device) hold Copy password / Show password / Share link / Show
   QR (icon-left, centered label), plus a short "anyone with the password or link
   can join" warning. The four buttons are primary-filled; the Show password /
-  Show QR toggles flip to `outline` while their reveal is open ("Hide …"). On
+  Show QR toggles flip to `outline` while their reveal is open ("Hide …"); the
+  QR starts **open on a PC** (`isDesktopPointer` in `src/lib/device.ts`, a
+  `(hover: hover) and (pointer: fine)` check) and collapsed on phones. On
   entering a room they just created, the **creator** (only) sees the heading and
   buttons play a double pump (`ATTENTION_BEAT` in `src/lib/motion.ts`). The Share link button uses the native share sheet
   (`navigator.share`, the `share-2` icon) on mobile and falls back to copy on
@@ -146,7 +148,7 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   works" link opened in a **new tab** (navigating away would forfeit the
   in-memory slot). It never delays the join; returning visitors see nothing. The QR uses a vendored, dependency-free encoder
   (`src/lib/qr.ts`) as inline SVG. Room administration (roster + Remove room)
-  stays creator-only in the `CreatorPanel`, rendered below the Share options.
+  stays creator-only in the `CreatorPanel`, rendered below the Share section.
   Clicking the header title/logo (or the browser Back button) returns to the
   entry view: entering a room pushes a history entry (`ClipboardApp`) so Back
   pops home instead of leaving the site, and the header dispatches a `cso:home`

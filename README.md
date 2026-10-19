@@ -52,11 +52,12 @@ what the server can and cannot see, and the known limitations.
    the shared blob). The blob and the whole room auto-expire after a short TTL
    (10 minutes by default).
 
-### Share options (every member)
+### Share (every member)
 
 Below the editor, **every** member — creator and joiners — gets **Copy
 password**, **Show password**, **Share link** (the native share sheet on
-mobile, copy on desktop), and **Show QR**, with a short reminder that anyone
+mobile, copy on desktop), and **Show QR** (already open on a PC, ready to scan
+with a phone), with a short reminder that anyone
 holding the password or link can join. The link is
 `https://clipboard-sharing-online.com/#p=<base64url(password)>`: the password
 rides in the URL **fragment**, which browsers never send to the server, so it

@@ -96,11 +96,13 @@ transmitted except where noted.
 `decrypt(contentKey, {ciphertext, iv}) → Result<string>`. No React/DOM imports.
 
 ### Share links & auto-join (fragment only)
-The **Share options** (a `ShareControls` section shown below the editor to
+The **Share** section (a `ShareControls` section shown below the editor to
 **every** member — creator and joiners alike, so anyone can invite another
 device or re-copy the password) offer **Copy password** (to clipboard, without
 revealing it), **Show password** (reveal inline), **Share link**, and **Show
-QR**, each rendered with the icon pinned left and the label centered —
+QR** (open by default on a PC — mouse/trackpad pointer — so a phone can scan
+it right away; collapsed on phones/tablets), each rendered with the icon
+pinned left and the label centered —
 primary-filled, with the two Show toggles flipping to `outline` while their
 reveal is open. The creator's copy plays a one-time double pump on entering the
 room they just created, to point at the next step (joiners don't). A short
