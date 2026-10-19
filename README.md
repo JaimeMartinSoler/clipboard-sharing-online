@@ -108,11 +108,11 @@ Joiners get a focused view: the shared editor, the share options, and
 
 A creator and a joiner both type the password `HGDA42`. Each browser derives the
 same keys **independently** — nothing secret is exchanged, and nothing secret
-reaches the server. Values in `⟨angle brackets⟩` stand in for the real outputs
-of this app's [`src/lib/crypto.ts`](src/lib/crypto.ts) and show their exact
-shape: a 16-byte `room_id` is 22 base64url characters, a 96-bit `iv` is 16, and
-`hello world` (11 bytes + the 16-byte GCM tag) is 36. The `iv` and ciphertext
-are fresh random values on every push anyway.
+reaches the server. The values below are real: they are what this app's
+[`src/lib/crypto.ts`](src/lib/crypto.ts) produces. A 16-byte `room_id` is 22
+base64url characters, a 96-bit `iv` is 16, and `hello world` (11 bytes + the
+16-byte GCM tag) is 36. The `room_id` is always the same for `HGDA42`; the `iv`
+and ciphertext are fresh random values on every push.
 
 > **Don't reuse this example.** This README is public, so the `HGDA42` room is
 > effectively a public room: anyone trying the example on the live site lands in
@@ -126,7 +126,7 @@ sequenceDiagram
     participant S as Server (Worker + D1 + Durable Object)
     participant J as Joiner browser
 
-    Note over C: password "HGDA42"<br/>Argon2id (64 MiB, t=3) then HKDF<br/>room_id = ⟨22 base64url chars⟩<br/>(one-way: no way back to the password)<br/>content key stays in the browser
+    Note over C: password "HGDA42"<br/>Argon2id (64 MiB, t=3) then HKDF<br/>room_id = J2RRmhJBk6bY3w003JlN3A<br/>(one-way: no way back to the password)<br/>content key stays in the browser
     C->>S: POST /api/rooms {roomId, mode: create, capacity: 2}
     Note over S: stores room_id, capacity, sync_mode<br/>and SHA-256(token) only
     S-->>C: {token, role: creator}
@@ -149,14 +149,14 @@ sequenceDiagram
 | --- | --- | --- | --- |
 | Password | `HGDA42` — never sent | *nothing* | `HGDA42` — never sent (a share link carries it only in the `#p=SEdEQTQy` fragment — `SEdEQTQy` is the **base64url** of `HGDA42`, an encoding, not encryption — and browsers never transmit the fragment) |
 | Key derivation | `HGDA42` → Argon2id → HKDF → `room_id` + non-extractable AES-GCM-256 key. One-way: the `room_id` is computed **from** the password, never the reverse | *nothing* | the same `room_id` and key, derived independently |
-| Create / join | `POST /api/rooms` | `roomId: "⟨22 base64url chars⟩"`, `capacity: 2`, `sync_mode`, **SHA-256** of each member's token | `POST /api/rooms` (join seals the room at 2/2) |
-| Push | encrypts `hello world` | `ciphertext: "⟨36 base64url chars⟩"`, `iv: "⟨16 base64url chars⟩"`, `expires_at` | — |
+| Create / join | `POST /api/rooms` | `roomId: "J2RRmhJBk6bY3w003JlN3A"`, `capacity: 2`, `sync_mode`, **SHA-256** of each member's token | `POST /api/rooms` (join seals the room at 2/2) |
+| Push | encrypts `hello world` | `ciphertext: "-qL_WXESlD0rkZ1D8gz0MzS1iubqNJtYQtcY"`, `iv: "jCoWtKInemep78L2"`, `expires_at` | — |
 | Delivery | — | the same `{ciphertext, iv}` pushed over `wss://` by the room's Durable Object | decrypts to `hello world` |
-| Wrong password `HGDA43` | — | derives a completely different `room_id`, a different room → join gets `404` | — |
+| Wrong password `HGDA43` | — | derives `room_id: "_GuINxgV8Tsi-Z1twn9-yw"`, a completely different room → join gets `404` | — |
 
 **The `room_id` is derived from the password, and the password cannot be
 recovered from the `room_id`.** Argon2id and HKDF are one-way functions:
-holding the `room_id` gives no way to compute `HGDA42` backwards. What it does
+holding `J2RRmhJBk6bY3w003JlN3A` gives no way to compute `HGDA42` backwards. What it does
 allow is **checking guesses**: the derivation is public and deterministic, so
 anyone can derive a candidate password and see whether it lands on the same
 `room_id`. Six uppercase letters and digits is a small search space — **it is a
