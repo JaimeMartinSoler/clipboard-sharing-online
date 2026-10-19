@@ -52,7 +52,7 @@ what the server can and cannot see, and the known limitations.
    the shared blob). The blob and the whole room auto-expire after a short TTL
    (10 minutes by default).
 
-### Share options (every member)
+### Share clipboard room (every member)
 
 Below the editor, **every** member — creator and joiners — gets **Copy
 password**, **Show password**, **Share link** (the native share sheet on
