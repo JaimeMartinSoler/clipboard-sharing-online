@@ -19,7 +19,7 @@
  */
 import { DurableObject } from "cloudflare:workers";
 import type { Bindings } from "./bindings";
-import { setClipboard } from "./db";
+import { setClipboard, setRoomTtl } from "./db";
 
 /** Terminal close codes the client must NOT reconnect after. */
 export const WS_CLOSE_REVOKED = 4001;
@@ -36,10 +36,17 @@ export interface PushMessage {
   roomId: string;
   ciphertext: string;
   iv: string;
-  expiresAt: number;
+  /** A creator's TTL override (legacy client path), or null to keep the room's. */
+  ttlMs: number | null;
   now: number;
   /** SHA-256 hash of the pusher's token — their own sockets are skipped. */
   pusherTokenHash: string;
+}
+
+export interface TtlMessage {
+  roomId: string;
+  ttlMs: number;
+  now: number;
 }
 
 interface SocketAttachment {
@@ -92,30 +99,30 @@ export class RoomDO extends DurableObject<Bindings> {
 
   /**
    * Live-mode push: write the blob to D1 and broadcast it, serialized with all
-   * other pushes to this room. Returns false when the room is missing/expired
-   * (the Worker maps that to 404) — `setClipboard`'s liveness guard means a
-   * racing expiry can never be resurrected here.
+   * other pushes to this room. Returns the new `expiresAt`, or null when the
+   * room is missing/expired (the Worker maps that to 404) — `setClipboard`'s
+   * liveness guard means a racing expiry can never be resurrected here.
    */
-  async push(p: PushMessage): Promise<boolean> {
-    const stored = await setClipboard(
+  async push(p: PushMessage): Promise<number | null> {
+    const expiresAt = await setClipboard(
       this.env.DB,
       p.roomId,
       p.ciphertext,
       p.iv,
-      p.expiresAt,
+      p.ttlMs,
       p.now,
     );
-    if (!stored) return false;
+    if (expiresAt === null) return null;
 
-    // Each push (re)sets the room TTL; keep the expiry alarm in step.
-    await this.ctx.storage.setAlarm(p.expiresAt);
+    // Each push re-arms the room expiry; keep the alarm in step.
+    await this.ctx.storage.setAlarm(expiresAt);
 
     const message = JSON.stringify({
       v: 1,
       type: "update",
       ciphertext: p.ciphertext,
       iv: p.iv,
-      expiresAt: p.expiresAt,
+      expiresAt,
     });
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as SocketAttachment | null;
@@ -126,7 +133,29 @@ export class RoomDO extends DurableObject<Bindings> {
         // Socket already closing/errored; the runtime reaps it.
       }
     }
-    return true;
+    return expiresAt;
+  }
+
+  /**
+   * Creator changed the room TTL: store it and restart the expiry in D1, slide
+   * the alarm (it trusts every expiry change to come through here — shortening
+   * must pull it in, not just extending), and tell every socket the new
+   * `expiresAt` so their countdowns follow. Content-free: no ciphertext rides
+   * along. Returns the new `expiresAt`, or null if the room is gone.
+   */
+  async setTtl(t: TtlMessage): Promise<number | null> {
+    const expiresAt = await setRoomTtl(this.env.DB, t.roomId, t.ttlMs, t.now);
+    if (expiresAt === null) return null;
+    await this.ctx.storage.setAlarm(expiresAt);
+    const message = JSON.stringify({ v: 1, type: "expiry", expiresAt });
+    for (const ws of this.ctx.getWebSockets()) {
+      try {
+        ws.send(message);
+      } catch {
+        // Socket already closing/errored; the runtime reaps it.
+      }
+    }
+    return expiresAt;
   }
 
   /** Sever a revoked member's sockets. Their slot stays sealed regardless. */
@@ -177,8 +206,8 @@ export class RoomDO extends DurableObject<Bindings> {
   }
 
   /**
-   * TTL expiry. Every path that extends `expires_at` (connect reads it fresh
-   * from D1; push rewrites it) also slides this alarm, and the DO's input gate
+   * TTL expiry. Every path that changes `expires_at` (connect reads it fresh
+   * from D1; push and setTtl rewrite it) also slides this alarm, and the DO's input gate
    * means a push can never interleave with the alarm — so when it fires, the
    * room really is past its TTL. The cron/lazy delete handles the D1 rows.
    */

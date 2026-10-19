@@ -6,7 +6,7 @@ does **not**, the residual risks of the password-only design, and the mitigation
 ## Guarantees
 - **The server cannot read your data.** It stores only an opaque `room_id`, the
   AES-GCM `ciphertext`, the `iv`, timestamps, a `capacity` count, a `sync_mode`
-  label, and opaque membership **token hashes**. The password, the derived
+  label, a `ttl_ms` duration, and opaque membership **token hashes**. The password, the derived
   master key, the content key, and the plaintext are computed and used **only
   in the browser** and are **never transmitted**. This holds for live rooms
   too: the WebSocket broadcasts carry exactly the same `{ciphertext, iv}` the

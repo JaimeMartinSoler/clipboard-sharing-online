@@ -79,8 +79,7 @@ ciphertext it has no way to decrypt.
   validated`): e.g. *"Joined as terminal 1 of 2 — waiting for 1 more"*, *"Room
   sealed (2/2) — sharing is locked to these terminals"*, *"Room is sealed — no
   free slot"*, *"Your slot was lost (reload/closed) — locked out until this room
-  expires"*, *"Encrypted & pushed."* (the banner appends a live *"· expires in
-  10 min"* countdown), *"Pulled & decrypted"*,
+  expires"*, *"Encrypted & pushed."*, *"Pulled & decrypted"*,
   *"No data in this room (or wrong password)"*, *"Couldn't decrypt — check the
   password"*.
 - A visible **🔒 End-to-end encrypted** badge and a `/privacy` page explaining
@@ -94,10 +93,12 @@ ciphertext it has no way to decrypt.
   disabled/grayed, never hidden. Controls that would be a known local no-op are
   disabled too: **Push** in live push-mode rooms while the text equals the last
   pushed/pulled/applied copy (manual rooms keep it enabled — another device may
-  have overwritten the blob unseen, and a re-push re-sends the TTL; "Sync now"
+  have overwritten the blob unseen, and a re-push re-arms the room's expiry; "Sync now"
   in auto-sync rooms also stays enabled), **Clear** while the box is empty.
 - The text box does not soft-wrap: long lines scroll horizontally.
-- Show the room's expiry countdown after a successful push/pull.
+- Show the room's expiry countdown after a successful push/pull — in the
+  editor heading row (after the sync-mode label and live dot) as an hourglass +
+  zero-padded `MM:SS`, "expires in" explained on hover, red under `01:00`.
 - Never reveal whether a room "exists" beyond what a legitimate user needs: a
   failed pull and a wrong-password pull look the same to the user and identical
   on the wire.
@@ -108,7 +109,10 @@ ciphertext it has no way to decrypt.
   pick a **public room** (`capacity = 0`): no limit, never seals — trading the
   seal-on-full protection for unbounded joining on one password.
 - **TTL:** default ~10 minutes; offer a small fixed set (e.g. 1 min / 10 min /
-  1 hour) — shorter is safer.
+  1 hour) — shorter is safer. It is a room property owned by the creator:
+  changing it applies to every terminal at once and restarts the countdown, and
+  every push (from any member) re-arms the expiry from it. Joiners cannot
+  change it — enforced by the server, not just hidden in the UI.
 - **Max payload:** cap the *encrypted* size (e.g. 256 KB) and reject larger
   pushes with a clear error.
 

@@ -11,25 +11,52 @@ export interface ClipboardRow {
 }
 
 /**
- * Write the encrypted blob and (re)set the room's TTL. Returns false if no live
- * room matched — rooms are created only by joining (POST /api/rooms), so a push
- * to a missing/expired room is rejected rather than resurrecting it.
+ * Write the encrypted blob and re-arm the room's expiry to `now + ttl_ms`.
+ * Returns the new `expiresAt`, or null if no live room matched — rooms are
+ * created only by joining (POST /api/rooms), so a push to a missing/expired
+ * room is rejected rather than resurrecting it.
+ *
+ * `ttlMs` is non-null only for a creator push that carries one (the legacy
+ * client path): it replaces the stored `ttl_ms` in the same statement. A joiner
+ * push passes null and inherits the creator's stored TTL. SQLite evaluates SET
+ * expressions against the OLD row, hence the repeated `COALESCE(?, ttl_ms)`.
  */
 export async function setClipboard(
   db: D1Database,
   roomId: string,
   ciphertext: string,
   iv: string,
-  expiresAt: number,
+  ttlMs: number | null,
   now: number,
-): Promise<boolean> {
-  const res = await db
+): Promise<number | null> {
+  const row = await db
     .prepare(
-      "UPDATE rooms SET ciphertext = ?, iv = ?, expires_at = ? WHERE room_id = ? AND expires_at > ?",
+      "UPDATE rooms SET ciphertext = ?, iv = ?, ttl_ms = COALESCE(?, ttl_ms), expires_at = ? + COALESCE(?, ttl_ms) WHERE room_id = ? AND expires_at > ? RETURNING expires_at AS expiresAt",
     )
-    .bind(ciphertext, iv, expiresAt, roomId, now)
-    .run();
-  return res.meta.changes > 0;
+    .bind(ciphertext, iv, ttlMs, now, ttlMs, roomId, now)
+    .first<{ expiresAt: number }>();
+  return row?.expiresAt ?? null;
+}
+
+/**
+ * Creator-only TTL change: store the new `ttl_ms` and restart the expiry at
+ * `now + ttlMs`, so the choice applies to every member's later pushes and the
+ * countdown reflects it immediately. Same liveness guard as a push (never
+ * resurrects an expired room). Returns the new `expiresAt`, or null.
+ */
+export async function setRoomTtl(
+  db: D1Database,
+  roomId: string,
+  ttlMs: number,
+  now: number,
+): Promise<number | null> {
+  const row = await db
+    .prepare(
+      "UPDATE rooms SET ttl_ms = ?, expires_at = ? WHERE room_id = ? AND expires_at > ? RETURNING expires_at AS expiresAt",
+    )
+    .bind(ttlMs, now + ttlMs, roomId, now)
+    .first<{ expiresAt: number }>();
+  return row?.expiresAt ?? null;
 }
 
 /** Fetch the live blob for a room, or null if missing/expired/never-pushed. */
@@ -106,6 +133,8 @@ export interface JoinResult {
   role: MemberRole;
   /** The room's sync mode (the stored one — a joiner learns it here). */
   syncMode: SyncMode;
+  /** The room's stored TTL in ms (set by the creator; every push re-arms it). */
+  ttlMs: number;
   /** Why a join was refused (only meaningful when `joined === false`). */
   reason?: "sealed" | "not_found" | "exists";
 }
@@ -115,6 +144,7 @@ interface RoomStat {
   sealed: number;
   members: number;
   syncMode: SyncMode;
+  ttlMs: number;
 }
 
 /**
@@ -172,7 +202,7 @@ export async function allocateSlot(
     .bind(roomId, roomId);
   const readBack = db
     .prepare(
-      "SELECT capacity, sealed, sync_mode AS syncMode, (SELECT COUNT(*) FROM members WHERE room_id = ?) AS members FROM rooms WHERE room_id = ?",
+      "SELECT capacity, sealed, sync_mode AS syncMode, ttl_ms AS ttlMs, (SELECT COUNT(*) FROM members WHERE room_id = ?) AS members FROM rooms WHERE room_id = ?",
     )
     .bind(roomId, roomId);
 
@@ -185,9 +215,9 @@ export async function allocateSlot(
     // already created it), the creator INSERT changes 0 rows ⇒ reason "exists".
     const createRoom = db
       .prepare(
-        "INSERT OR IGNORE INTO rooms (room_id, capacity, ciphertext, iv, created_at, expires_at, sealed, sync_mode) VALUES (?, ?, NULL, NULL, ?, ?, 0, ?)",
+        "INSERT OR IGNORE INTO rooms (room_id, capacity, ciphertext, iv, created_at, expires_at, sealed, sync_mode, ttl_ms) VALUES (?, ?, NULL, NULL, ?, ?, 0, ?, ?)",
       )
-      .bind(roomId, capacity, now, expiresAt, syncMode);
+      .bind(roomId, capacity, now, expiresAt, syncMode, ttlMs);
     const insertCreator = db
       .prepare(
         "INSERT INTO members (room_id, token_hash, joined_at, role) SELECT ?, ?, ?, 'creator' WHERE EXISTS (SELECT 1 FROM rooms WHERE room_id = ? AND expires_at > ?) AND (SELECT COUNT(*) FROM members WHERE room_id = ?) = 0",
@@ -226,6 +256,7 @@ export async function allocateSlot(
       // The stored mode, read back in the same transaction — for a joiner this
       // is how they learn what the creator chose.
       syncMode: stat?.syncMode ?? syncMode,
+      ttlMs: stat?.ttlMs ?? ttlMs,
     };
   }
 
@@ -245,6 +276,7 @@ export async function allocateSlot(
     sealed: (stat?.sealed ?? 0) === 1,
     role,
     syncMode: stat?.syncMode ?? syncMode,
+    ttlMs: stat?.ttlMs ?? ttlMs,
     reason,
   };
 }

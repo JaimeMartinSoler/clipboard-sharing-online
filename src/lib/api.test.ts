@@ -8,6 +8,7 @@ import {
   pullClipboard,
   pushClipboard,
   removeMember,
+  setRoomTtl,
 } from "./api";
 
 function mockFetch(response: Response | (() => Response | Promise<Response>)) {
@@ -188,6 +189,43 @@ describe("creator-only room management", () => {
   });
 });
 
+describe("setRoomTtl", () => {
+  it("PUTs only { ttlMs } with the Bearer token and returns the new expiry", async () => {
+    const fetchMock = mockFetch(json({ ok: true, ttlMs: 3_600_000, expiresAt: 9 }));
+    const res = await setRoomTtl("room/1", "secret-token", 3_600_000);
+    expect(res).toEqual({
+      ok: true,
+      value: { ok: true, ttlMs: 3_600_000, expiresAt: 9 },
+    });
+
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe("/api/rooms/room%2F1/ttl");
+    expect(init.method).toBe("PUT");
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer secret-token");
+    expect(JSON.parse(init.body as string)).toEqual({ ttlMs: 3_600_000 });
+  });
+
+  it("maps 401 / 403 / 404 / 400 / 5xx and network failures", async () => {
+    const cases: [number, string][] = [
+      [401, ApiError.SLOT_LOST],
+      [403, ApiError.FORBIDDEN],
+      [404, ApiError.ROOM_GONE],
+      [400, ApiError.BAD_REQUEST],
+      [500, ApiError.SERVER],
+    ];
+    for (const [status, error] of cases) {
+      mockFetch(json({}, status));
+      expect(await setRoomTtl("r", "t", 60_000)).toEqual({ ok: false, error });
+    }
+    vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new TypeError("offline"))));
+    expect(await setRoomTtl("r", "t", 60_000)).toEqual({
+      ok: false,
+      error: ApiError.NETWORK,
+    });
+  });
+});
+
 describe("pushClipboard", () => {
   it("attaches the Bearer token and sends ONLY roomId + ciphertext + iv", async () => {
     const fetchMock = mockFetch(json({ ok: true, expiresAt: 123 }));
@@ -206,13 +244,6 @@ describe("pushClipboard", () => {
     // No password, no plaintext, no token in the body — exactly three keys.
     expect(Object.keys(body).sort()).toEqual(["ciphertext", "iv", "roomId"]);
     expect(body).toEqual({ roomId: "room-1", ciphertext: "CT", iv: "IV" });
-  });
-
-  it("includes ttlMs only when provided", async () => {
-    const fetchMock = mockFetch(json({ ok: true, expiresAt: 1 }));
-    await pushClipboard("r", "t", { ciphertext: "CT", iv: "IV" }, 60000);
-    const [, init] = lastCall(fetchMock);
-    expect(JSON.parse(init.body as string).ttlMs).toBe(60000);
   });
 
   it("maps 401 → slot lost, 413 → too large, 404 → room gone", async () => {

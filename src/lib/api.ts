@@ -60,6 +60,8 @@ export interface JoinResponse {
   role: MemberRole;
   /** The room's stored mode — a joiner learns the creator's choice here. */
   syncMode: SyncMode;
+  /** The room's stored TTL (ms) — seeds the creator's Expiry select. */
+  ttlMs: number;
 }
 
 export interface MemberRow {
@@ -69,6 +71,13 @@ export interface MemberRow {
 }
 
 export interface PushResponse {
+  expiresAt: number;
+}
+
+export interface TtlResponse {
+  /** The TTL the server stored (clamped to its maximum). */
+  ttlMs: number;
+  /** The room's restarted expiry: now + `ttlMs`. */
   expiresAt: number;
 }
 
@@ -180,12 +189,44 @@ export async function deleteRoom(
   return err(ApiError.SERVER);
 }
 
-/** Encrypt-then-upload: replaces the room's blob and resets its TTL. */
+/**
+ * Set the room's TTL for every member and restart its expiry now. Creator-only
+ * server-side (403 for a joiner); live rooms also broadcast the new expiry.
+ */
+export async function setRoomTtl(
+  roomId: string,
+  token: string,
+  ttlMs: number,
+): Promise<Result<TtlResponse>> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/rooms/${encodeURIComponent(roomId)}/ttl`, {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ttlMs }),
+    });
+  } catch {
+    return err(ApiError.NETWORK);
+  }
+  if (res.status === 401) return err(ApiError.SLOT_LOST);
+  if (res.status === 403) return err(ApiError.FORBIDDEN);
+  if (res.status === 404) return err(ApiError.ROOM_GONE);
+  if (res.status === 400) return err(ApiError.BAD_REQUEST);
+  if (!res.ok) return err(ApiError.SERVER);
+  return readJson<TtlResponse>(res);
+}
+
+/**
+ * Encrypt-then-upload: replaces the room's blob and re-arms its expiry from
+ * the room's stored TTL (which only the creator changes, via `setRoomTtl`).
+ */
 export async function pushClipboard(
   roomId: string,
   token: string,
   payload: EncryptedPayload,
-  ttlMs?: number,
 ): Promise<Result<PushResponse>> {
   let res: Response;
   try {
@@ -199,7 +240,6 @@ export async function pushClipboard(
         roomId,
         ciphertext: payload.ciphertext,
         iv: payload.iv,
-        ...(ttlMs !== undefined ? { ttlMs } : {}),
       }),
     });
   } catch {

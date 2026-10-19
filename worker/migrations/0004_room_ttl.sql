@@ -1,0 +1,13 @@
+-- Room-level TTL owned by the creator.
+--
+-- Before this, every push carried the pusher's own `ttlMs`, so a joiner (who
+-- never sees the creator's Expiry select) reset the room to the default TTL on
+-- each push, silently overriding the creator's choice. `rooms.ttl_ms` makes the
+-- TTL a property of the room, like `sync_mode`:
+--   - set to the default at creation;
+--   - changed only by the creator (PUT /api/rooms/:roomId/ttl, or a creator
+--     push that still sends `ttlMs` — the legacy client path);
+--   - every push, from any member, re-arms `expires_at = now + ttl_ms`.
+-- The default matches TTL_DEFAULT_MS (10 min), so rooms live at migration time
+-- keep today's behavior.
+ALTER TABLE rooms ADD COLUMN ttl_ms INTEGER NOT NULL DEFAULT 600000;

@@ -101,6 +101,18 @@ describe("parseLiveFrame", () => {
     });
   });
 
+  it("recognises a content-free expiry change and validates its timestamp", () => {
+    expect(parseLiveFrame(JSON.stringify({ v: 1, type: "expiry", expiresAt: 42 }))).toEqual({
+      ok: true,
+      value: { type: "expiry", expiresAt: 42 },
+    });
+    expect(parseLiveFrame(JSON.stringify({ v: 1, type: "expiry" })).ok).toBe(false);
+    expect(
+      parseLiveFrame(JSON.stringify({ v: 1, type: "expiry", expiresAt: "soon" })).ok,
+    ).toBe(false);
+    expect(parseLiveFrame(JSON.stringify({ v: 2, type: "expiry", expiresAt: 42 })).ok).toBe(false);
+  });
+
   it("wraps a valid update frame", () => {
     const frame = { v: 1, type: "update", ciphertext: "Q1R4", iv: "SVY", expiresAt: 7 };
     expect(parseLiveFrame(JSON.stringify(frame))).toEqual({

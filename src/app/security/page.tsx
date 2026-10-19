@@ -45,7 +45,7 @@ export default function SecurityPage() {
           <li>
             Each push: a random 96-bit IV from{" "}
             <code>crypto.getRandomValues</code>; the upload is{" "}
-            <code>{"{roomId, ciphertext, iv, ttlMs}"}</code>.
+            <code>{"{roomId, ciphertext, iv}"}</code>.
           </li>
           <li>
             Membership: a 256-bit random bearer token, returned once, held in
@@ -58,7 +58,7 @@ export default function SecurityPage() {
         <p>
           <strong>Sees:</strong> room ids; ciphertext and IVs; ciphertext size
           and timing; created and expiry timestamps; each room&apos;s capacity,
-          sealed flag and sync mode; member rows of id, role, token hash and
+          sealed flag, sync mode and expiry duration; member rows of id, role, token hash and
           join time. Client IPs are counted in memory by the rate limiter and
           never written to the database.
         </p>

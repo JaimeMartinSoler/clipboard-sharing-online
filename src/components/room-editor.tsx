@@ -4,6 +4,7 @@ import {
   ClipboardPaste,
   Download,
   Hand,
+  Hourglass,
   type LucideIcon,
   RadioTower,
   Redo2,
@@ -20,7 +21,9 @@ import type { LiveStatus } from "@/components/use-live-room";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import type { SyncMode } from "@/lib/api";
+import { formatCountdown, isExpiringSoon } from "@/lib/datetime";
 import { isPushDisabled } from "@/lib/push-state";
+import { cn } from "@/lib/utils";
 
 export const TTL_OPTIONS = [
   { label: "1 minute", ms: 60_000 },
@@ -78,8 +81,9 @@ const SYNC_MODE_INFO: Record<
 /**
  * The shared clipboard editor — identical for creator and joiner. Encrypt-then-
  * Push, Pull-then-decrypt, Clear the local text box, Undo/Redo/Copy/Paste
- * locally. The Expiry selector (creator only) sets the TTL sent with the next
- * Push. In live modes the toolbar also shows the connection dot and the
+ * locally. The Expiry selector (creator only) sets the room's TTL on the
+ * server for every terminal and restarts the countdown; each push from any
+ * member re-arms it. In live modes the toolbar also shows the connection dot and the
  * per-client conflict policy ("on update: overwrite / warn").
  *
  * Push and Clear also disable on what is known locally: Push in the live
@@ -104,6 +108,7 @@ export function RoomEditor({
   canSetExpiry,
   syncMode,
   liveStatus,
+  remainingMs,
   conflictPolicy,
   onConflictPolicyChange,
 }: {
@@ -126,6 +131,8 @@ export function RoomEditor({
   /** The room's sync mode (fixed at creation) — decides the button set. */
   syncMode: SyncMode;
   liveStatus: LiveStatus;
+  /** Ms until the room expires on the server; `null` before the first push. */
+  remainingMs: number | null;
   conflictPolicy: ConflictPolicy;
   onConflictPolicyChange: (value: ConflictPolicy) => void;
 }) {
@@ -159,6 +166,7 @@ export function RoomEditor({
           </Hint>
           {/* Live dot sits to the right of the broadcast/sync-mode text. */}
           {isLive && <LiveIndicator status={liveStatus} />}
+          {remainingMs !== null && <ExpiryCountdown remainingMs={remainingMs} />}
         </div>
         <div className="grid w-full grid-cols-4 gap-2 sm:inline-grid sm:w-auto">
           <Hint text="Undo the last change to the text box.">
@@ -281,7 +289,7 @@ export function RoomEditor({
               Expiry
               <Hint
                 className="flex-1 sm:flex-none"
-                text="How long a pushed blob lives on the server. Shorter is safer."
+                text="How long the room lives on the server after each push, for every terminal. Changing it restarts the countdown now. Shorter is safer."
               >
                 <Select
                   value={ttlMs}
@@ -302,6 +310,31 @@ export function RoomEditor({
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * Hourglass + `MM:SS` until the room expires, with the meaning on hover. Turns
+ * red (icon and time) in the last minute. `tabular-nums` keeps the width steady
+ * as the digits tick.
+ */
+function ExpiryCountdown({ remainingMs }: { remainingMs: number }) {
+  const urgent = isExpiringSoon(remainingMs);
+  return (
+    <Hint text="Expires in: when this reaches 00:00 the room and its encrypted text are deleted from the server. Each push restarts the countdown.">
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 text-xs tabular-nums",
+          urgent ? "text-destructive" : "text-muted-foreground",
+        )}
+      >
+        <Hourglass className="size-3" aria-hidden />
+        <span>
+          <span className="sr-only">Expires in </span>
+          {formatCountdown(remainingMs)}
+        </span>
+      </span>
+    </Hint>
   );
 }
 
