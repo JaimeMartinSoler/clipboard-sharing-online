@@ -54,14 +54,6 @@ type Busy = EntryBusy | "push" | "pull";
 const TYPING_WAIT_MS = 1_000;
 const TYPING_MAX_WAIT_MS = 3_000;
 
-function formatRemaining(ms: number): string {
-  if (ms <= 0) return "expired";
-  const total = Math.floor(ms / 1000);
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
 /** Replace the generic 401 copy with the strict-slot lockout wording. */
 function slotLostCopy(error: string): string {
   return error === ApiError.SLOT_LOST
@@ -417,8 +409,8 @@ export function ClipboardApp() {
       if (!opts.silent) {
         setStatus({
           kind: "validated",
-          // The banner appends a persistent "· expires in …" countdown, so the
-          // message itself stays countdown-free to avoid a doubled expiry.
+          // The editor shows the persistent expiry countdown, so the message
+          // itself stays countdown-free to avoid a doubled expiry.
           message: "Encrypted & pushed.",
         });
       }
@@ -716,15 +708,7 @@ export function ClipboardApp() {
             </div>
           </div>
 
-          <StatusBanner kind={status.kind}>
-            {status.message}
-            {remaining !== null && (
-              <span className="ml-1 tabular-nums">
-                {" "}
-                · expires in {formatRemaining(remaining)}
-              </span>
-            )}
-          </StatusBanner>
+          <StatusBanner kind={status.kind}>{status.message}</StatusBanner>
 
           {showExplainer && (
             <FirstVisitExplainer onDismiss={() => setShowExplainer(false)} />
@@ -747,6 +731,7 @@ export function ClipboardApp() {
             canSetExpiry={session.role === "creator"}
             syncMode={session.syncMode}
             liveStatus={liveStatus}
+            remainingMs={remaining}
             conflictPolicy={conflictPolicy}
             onConflictPolicyChange={setConflictPolicy}
           />
