@@ -211,8 +211,19 @@ Never push directly to `main` (`main` triggers the Cloudflare production deploy;
   in `min-h-full` (resolved against the fixed-height `<main>`), and
   `LandingContent` + the footer follow below it. The homepage FAQ and its
   `FAQPage` JSON-LD are both built from `src/lib/faq.ts` (`faq.test.ts` renders
-  the component and asserts they match). Copy must only claim what the code
+  the component and asserts they match; it caps the list at 12 entries —
+  merge or trim before adding). Copy must only claim what the code
   does — the fixed-salt caveat and the analytics beacon are stated, not hidden.
+  **Keyword targeting is privacy-shaped, with no doorway pages**: we give up
+  the contested head terms ("online clipboard", "share text between devices")
+  and give each existing route one primary intent in its title/H1 — `/` "end-to-end
+  encrypted clipboard" (`SITE_TAGLINE`), `/security/` "zero-knowledge
+  clipboard", `/share-text-between-phone-and-pc/` phone↔PC with no app or
+  account. Secondary intents (sending a password securely → that page's
+  `#send-a-password` section; "encrypted pastebin alternative" → a homepage
+  sub-block + FAQ) live as sections, not new routes. `SITE_KEYWORDS` lists them
+  in that priority. Compare against categories ("paste sites", "emailing
+  yourself"), never named competitors.
 - **Entry view** puts the Create/Join buttons on top and tucks the room options
   (Private/Public room toggle, Terminals, Sharing mode) under a collapsed-by-default
   **Advanced Settings** panel — simple by default, configurable on demand.

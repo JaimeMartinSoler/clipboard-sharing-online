@@ -27,9 +27,11 @@ interface JsonLdQuestion {
 }
 
 describe("FAQ", () => {
-  it("has 8–10 non-empty, unique questions", () => {
+  it("has 8–12 non-empty, unique questions", () => {
     expect(FAQ.length).toBeGreaterThanOrEqual(8);
-    expect(FAQ.length).toBeLessThanOrEqual(10);
+    // Cap the list: past ~12 entries, merge or trim the weakest instead of
+    // appending (the FAQ is a scannable block, not a keyword dump).
+    expect(FAQ.length).toBeLessThanOrEqual(12);
     expect(new Set(FAQ.map((e) => e.question)).size).toBe(FAQ.length);
     for (const entry of FAQ) {
       expect(entry.question.endsWith("?"), entry.question).toBe(true);

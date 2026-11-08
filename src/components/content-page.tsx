@@ -45,15 +45,22 @@ export function ContentSection({
   icon: Icon,
   children,
   className,
+  id,
 }: {
   title: string;
   icon?: LucideIcon;
   children: ReactNode;
   className?: string;
+  /** Stable anchor for `#fragment` links into this section. */
+  id?: string;
 }) {
   return (
     <section
-      className={cn("space-y-2 rounded-lg border bg-card p-4 md:p-6", className)}
+      id={id}
+      className={cn(
+        "scroll-mt-4 space-y-2 rounded-lg border bg-card p-4 md:p-6",
+        className,
+      )}
     >
       <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
         {Icon && <Icon className="size-4 shrink-0" />}
