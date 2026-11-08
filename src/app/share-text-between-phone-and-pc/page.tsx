@@ -71,6 +71,22 @@ export default function PhoneToPcPage() {
         </p>
       </ContentSection>
 
+      <ContentSection title="No Google, Apple or Microsoft account needed">
+        <p>
+          The usual workarounds all go through an account: emailing or
+          messaging the text to yourself, pasting it into a cloud notes app, or
+          a phone maker&apos;s clipboard sync, which usually needs both devices
+          signed in to the same ecosystem. Each one keeps a copy in a history
+          you don&apos;t control, tied to your identity.
+        </p>
+        <p>
+          Here there is nothing to sign in to. The two devices meet on a shared
+          password, our server stores only ciphertext it can&apos;t read, and
+          the room is deleted within minutes. No cookies are set; the only
+          third-party request is Cloudflare&apos;s cookieless page-view beacon.
+        </p>
+      </ContentSection>
+
       <ContentSection title="Tips for a smooth hand-off">
         <ul className="list-disc space-y-2 pl-5">
           <li>
@@ -88,24 +104,69 @@ export default function PhoneToPcPage() {
             (up to 6) before creating the room, or make it an open room.
           </li>
           <li>
-            <strong>Sending something sensitive?</strong> Use{" "}
-            <strong>Password Safer</strong> for a 16-character random password
-            and join by QR, so nobody has to type it.
+            <strong>Sending something sensitive?</strong> Follow the{" "}
+            <a href="#send-a-password" className={TEXT_LINK_CLASS}>
+              password steps below
+            </a>
+            .
           </li>
         </ul>
       </ContentSection>
 
-      <ContentSection title="Is it safe for passwords and codes?">
+      <ContentSection
+        id="send-a-password"
+        title="Sending a password or 2FA code securely"
+      >
         <p>
-          Your text is encrypted on the phone before it is uploaded, and only a
-          device with the same password can decrypt it. Our server stores the
-          encrypted blob and nothing it could use to read it, then deletes it
-          10 minutes after the last push by default. The trade-offs of a
-          password-only design are spelled out plainly on the{" "}
+          Emailing a password to yourself, or sending it in a chat or text
+          message, leaves a copy in that conversation&apos;s history, usually
+          synced to every device you are signed in on. Unless the service is
+          end-to-end encrypted, the provider can read it too. For a one-off
+          hand-off between your own devices, this is the cleaner route:
+        </p>
+        <ol className="list-decimal space-y-2 pl-5">
+          <li>
+            <strong>On the device that has the secret</strong>, press{" "}
+            <strong>Password Safer</strong> for a 16-character random room
+            password, then <strong>Create room</strong>.
+          </li>
+          <li>
+            Press <strong>Show QR</strong> and scan it with the other device.
+            The room password travels in the part of the link after{" "}
+            <code>#</code>, which browsers never send to a server, so nothing
+            is typed and nothing is overheard.
+          </li>
+          <li>
+            Set <strong>Expiry</strong> to <strong>1 minute</strong>, paste the
+            secret and press <strong>Push</strong>. On the other device, press{" "}
+            <strong>Copy</strong>.
+          </li>
+          <li>
+            Press <strong>Remove room</strong>. The encrypted text, the room
+            and its members are deleted right away instead of when the timer
+            runs out.
+          </li>
+        </ol>
+        <p>
+          <strong>What protects it.</strong> The secret is encrypted with
+          AES-GCM-256 in the sending browser before it is uploaded, and only a
+          device with the same room password can decrypt it. Our server holds
+          the ciphertext and nothing it could read it with. A private room (the
+          default, for two devices) seals as soon as the second device joins,
+          so nobody else can get in afterwards, even with the password.
+        </p>
+        <p>
+          <strong>The limits.</strong> Until the room is full, anyone with the
+          link or QR can join, so show the QR only to your own device and keep
+          an eye on who can see your screen. If someone stole our database,
+          they could try to guess room passwords offline, because devices meet
+          on the password alone and key derivation uses a fixed, public salt;
+          a Safer password makes that impractical. The{" "}
           <Link href="/security/" className={TEXT_LINK_CLASS}>
             security page
-          </Link>
-          .
+          </Link>{" "}
+          has the full threat model. For credentials a team shares long-term, a
+          password manager&apos;s sharing feature is the better tool.
         </p>
       </ContentSection>
     </ContentPage>

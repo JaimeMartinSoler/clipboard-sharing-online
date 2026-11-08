@@ -9,15 +9,20 @@
 export const SITE_URL = "https://clipboard-sharing-online.com";
 export const SITE_NAME = "Clipboard Sharing Online";
 
-/** Short, human tagline used as the homepage title suffix. */
-export const SITE_TAGLINE = "Text Between Devices, Encrypted";
+/**
+ * Short tagline: the homepage's primary search intent. Leads the homepage
+ * title and suffixes the manifest name.
+ */
+export const SITE_TAGLINE = "End-to-End Encrypted Clipboard";
 
 /**
  * The homepage `<title>`. Kept under 60 chars so Google doesn't truncate it
- * (the test enforces the bound), while leading with the two highest-intent
- * phrases ("clipboard", "text between devices").
+ * (the test enforces the bound). It leads with the privacy-shaped intent we can
+ * actually win ("end-to-end encrypted clipboard") rather than the head terms
+ * ("online clipboard", "share text between devices") that entrenched sites own;
+ * the brand is the exact-match domain, so it is safe as the suffix.
  */
-export const SITE_TITLE = `${SITE_NAME} — ${SITE_TAGLINE}`;
+export const SITE_TITLE = `${SITE_TAGLINE} · ${SITE_NAME}`;
 
 /**
  * Whether the build being produced is the production deploy that search
@@ -38,36 +43,45 @@ export const SITE_INDEXABLE = isIndexableDeploy(process.env.GITHUB_REF_NAME);
 
 /**
  * The meta description / OpenGraph description. Written for a search snippet:
- * it names the concrete devices people search for (phone, PC, laptop, tablet)
- * and states the privacy guarantee that differentiates this tool. Kept within
- * the ~160-char snippet Google shows (pages.test.ts enforces it per route).
+ * it leads with the privacy guarantee that differentiates this tool, then names
+ * the concrete devices people search for (phone, PC, tablet) and the "no
+ * account" promise. Kept within the ~160-char snippet Google shows
+ * (pages.test.ts enforces it per route).
  */
 export const SITE_DESCRIPTION =
-  "Free online clipboard: share text between phone, PC, laptop and tablet. " +
-  "End-to-end encrypted — the server only stores ciphertext it cannot read. " +
-  "No sign-up.";
+  "An end-to-end encrypted clipboard: share text between phone, PC and " +
+  "tablet. Our server only stores ciphertext it can't read. No account, " +
+  "nothing to install.";
 
 /**
- * Long-tail search phrases we want to rank for. `keywords` carries little
- * weight with Google today, but it documents intent and feeds the manifest /
- * structured data. Ordered roughly by search intent.
+ * Search phrases we want to rank for. `keywords` carries little weight with
+ * Google today, but it documents intent. Ordered by priority: the
+ * privacy-shaped long tail first (winnable, and the searcher is our real
+ * user), the contested head terms last.
  */
 export const SITE_KEYWORDS = [
-  "clipboard share",
-  "text share",
-  "share text between devices",
-  "online clipboard",
-  "shared clipboard",
+  "end to end encrypted clipboard",
+  "zero knowledge clipboard sharing",
+  "online clipboard that cannot read my data",
+  "private clipboard sharing no account",
+  "securely send password to another device",
+  "encrypted alternative to pastebin",
+  "share text between phone and pc without google",
+  "encrypted clipboard",
+  "end-to-end encryption",
+  "zero-knowledge",
+  "phone to PC clipboard",
   "send text to my PC",
   "send text to my laptop",
   "send text to my smartphone",
   "copy paste between devices",
   "cross-device clipboard",
-  "phone to PC clipboard",
   "send text to another device",
-  "encrypted clipboard",
-  "end-to-end encryption",
-  "zero-knowledge",
+  "clipboard share",
+  "text share",
+  "shared clipboard",
+  "share text between devices",
+  "online clipboard",
 ];
 
 /** Public source repository — linked from /about, the homepage and /security. */

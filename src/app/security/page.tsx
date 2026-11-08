@@ -18,7 +18,7 @@ export default function SecurityPage() {
     <ContentPage
       icon={ShieldCheck}
       title="Security and threat model"
-      lead="What the server and a database thief can see, what the design guarantees, and where it is weak — condensed from docs/SECURITY.md in the repository."
+      lead="This is a zero-knowledge clipboard: the server never receives your password or any key, so it has nothing to decrypt your text with. Below: what the server and a database thief can see, what the design guarantees, and where it is weak — condensed from docs/SECURITY.md in the repository."
     >
       <ContentSection title="The claim, stated precisely">
         <p>

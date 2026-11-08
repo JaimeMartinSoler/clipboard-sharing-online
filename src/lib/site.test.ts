@@ -11,6 +11,7 @@ import {
   SITE_KEYWORDS,
   SITE_NAME,
   SITE_PUBLISHED,
+  SITE_TAGLINE,
   SITE_TITLE,
   SITE_URL,
   webApplicationJsonLd,
@@ -22,8 +23,10 @@ describe("site identity", () => {
     expect(SITE_URL.endsWith("/")).toBe(false);
   });
 
-  it("leads the homepage title with the brand and stays snippet-length", () => {
-    expect(SITE_TITLE.startsWith(SITE_NAME)).toBe(true);
+  it("leads the homepage title with the privacy intent, brand last, snippet-length", () => {
+    expect(SITE_TITLE.startsWith(SITE_TAGLINE)).toBe(true);
+    expect(SITE_TITLE.endsWith(SITE_NAME)).toBe(true);
+    expect(SITE_TAGLINE.toLowerCase()).toContain("end-to-end encrypted");
     // Google truncates titles around ~60 chars; keep the whole title visible.
     expect(SITE_TITLE.length).toBeLessThanOrEqual(60);
   });
@@ -64,6 +67,11 @@ describe("site identity", () => {
     for (const kw of ["clipboard share", "text share"]) {
       expect(SITE_KEYWORDS).toContain(kw);
     }
+    // The privacy-shaped intent leads; the contested head terms trail.
+    expect(SITE_KEYWORDS[0]).toBe("end to end encrypted clipboard");
+    expect(SITE_KEYWORDS.indexOf("online clipboard")).toBeGreaterThan(
+      SITE_KEYWORDS.indexOf("zero knowledge clipboard sharing"),
+    );
     // No duplicate keywords.
     expect(new Set(SITE_KEYWORDS).size).toBe(SITE_KEYWORDS.length);
   });

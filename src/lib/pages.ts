@@ -44,9 +44,9 @@ export const PAGES = [
   },
   {
     path: "/share-text-between-phone-and-pc/",
-    title: "Share Text Between Phone and PC — Encrypted, No App",
+    title: "Share Text Between Phone and PC — Encrypted, No Account",
     description:
-      "Send a link, code or note from your phone to your PC (or back) in seconds. Nothing to install, no account, end-to-end encrypted in the browser.",
+      "Send a link, code or password from your phone to your PC (or back) in seconds. End-to-end encrypted, no app, and no Google, Apple or Microsoft account.",
     navLabel: "Phone to PC",
     changeFrequency: "monthly",
     priority: 0.8,
@@ -62,9 +62,9 @@ export const PAGES = [
   },
   {
     path: "/security/",
-    title: "Security & Threat Model · Clipboard Sharing Online",
+    title: "Zero-Knowledge Clipboard: Security & Threat Model",
     description:
-      "Threat model and cryptography: Argon2id, HKDF, AES-GCM-256, what the server and a database thief can see, and the known limits of a password-only design.",
+      "Zero-knowledge clipboard: the server never gets your password or any key. Argon2id, HKDF, AES-GCM-256, what a database thief sees, and the known limits.",
     navLabel: "Security",
     changeFrequency: "monthly",
     priority: 0.7,

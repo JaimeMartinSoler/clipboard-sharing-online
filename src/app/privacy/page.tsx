@@ -75,7 +75,10 @@ export default function PrivacyPage() {
           </p>
         </Section>
 
-        <Section icon={KeyRound} title="Password is never sent nor stored">
+        <Section
+          icon={KeyRound}
+          title="No account, and your password is never sent or stored"
+        >
           <p>
             Your password and every key derived from it{" "}
             <strong>never leave this browser</strong>. Two devices that type the

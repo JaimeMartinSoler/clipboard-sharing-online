@@ -26,9 +26,19 @@ export const FAQ: readonly FaqEntry[] = [
       "No. The server receives an opaque room id, the ciphertext and its random nonce — never the password or any key — so there is nothing on our side that can decrypt it. The one caveat is that you are trusting the JavaScript this site serves you to do what it says; the code is open source so you can check it, and your browser's Network tab shows exactly what leaves the page.",
   },
   {
+    question: "Is this a zero-knowledge clipboard?",
+    answer:
+      "Yes, in the sense that matters here: the server never receives your password or any key derived from it, so it holds nothing it could decrypt your text with. It stores only an opaque room id, the ciphertext, its random nonce, timestamps, a few room settings and hashed membership tokens. The security page spells out the full construction and its limits, including the fixed-salt trade-off.",
+  },
+  {
     question: "How long is my text stored?",
     answer:
       "Briefly. By default a room expires 10 minutes after it was created or last pushed to; the room creator can pick 1 minute or 1 hour instead, and the server caps it at 1 hour. Expired rooms are deleted when next read and by a cleanup job that runs every 5 minutes, and the room creator can delete the room and its content at any time with Remove room.",
+  },
+  {
+    question: "Is it safe to send a password or 2FA code with it?",
+    answer:
+      "For a one-off hand-off between your own devices, yes. Create the room on the device that has the secret using Password Safer, join from the other device by scanning Show QR so nothing is typed, set Expiry to 1 minute, push, and press Remove room once it has arrived. Anyone with the room password or link can join until a private room is full, so show the QR only to your own device. For credentials a team shares long-term, a password manager's sharing feature is the better tool.",
   },
   {
     question: "What happens if I lose the password?",
@@ -36,9 +46,9 @@ export const FAQ: readonly FaqEntry[] = [
       "The text is gone for you — there is no reset, recovery or backup, because we never had the password or the key. Just create a new room with a new password. Since rooms expire within an hour at most, very little is ever lost.",
   },
   {
-    question: "Can I share files or images?",
+    question: "Is it an encrypted alternative to pastebin?",
     answer:
-      "No. It is text only: anything you can type or paste as text, up to 256 KB of encrypted data per push. There is no file or image upload.",
+      "For moving text between your own devices, yes. Paste sites publish text at a link that lasts; here the text is encrypted in your browser before upload, nothing is published at a public address, and every room is deleted within an hour at most. It is text only, up to 256 KB of encrypted data per push, with no file or image upload, so if you need a long-lived public link, syntax highlighting or files, a paste site is the better tool.",
   },
   {
     question: "How many devices can join a room?",

@@ -15,14 +15,25 @@ import { FaqSection } from "@/components/faq-section";
 import { buttonVariants } from "@/components/ui/button";
 import { REPO_URL } from "@/lib/site";
 
-const USE_CASES = [
+interface UseCase {
+  title: string;
+  body: string;
+  /** Optional deeper how-to for this use case. */
+  link?: { href: string; label: string };
+}
+
+const USE_CASES: readonly UseCase[] = [
   {
     title: "A URL from your phone to your laptop",
     body: "You found the article on your phone; you want to read it on the big screen. Paste, push, open.",
   },
   {
-    title: "A 2FA backup code",
-    body: "Move a recovery code between devices without it sitting in your email, chat history or a cloud note.",
+    title: "A password or 2FA code, sent securely",
+    body: "Move a password or recovery code between devices without it sitting in your email, chat history or a cloud note.",
+    link: {
+      href: "/share-text-between-phone-and-pc/#send-a-password",
+      label: "How to send one safely",
+    },
   },
   {
     title: "An address",
@@ -103,7 +114,7 @@ export function LandingContent() {
       </ContentSection>
 
       <ContentSection
-        title="Why this is different from other online clipboards"
+        title="An online clipboard that can't read your text"
         icon={ShieldCheck}
       >
         <p>
@@ -175,6 +186,21 @@ export function LandingContent() {
             covers the full threat model.
           </p>
         </div>
+        <h3 className="pt-2 font-medium text-foreground">
+          Looking for an encrypted pastebin alternative?
+        </h3>
+        <p>
+          Paste sites are built to <em>publish</em> text at a link that lasts.
+          This is built to <em>hand off</em> text between your own devices: it
+          is encrypted before it is uploaded, nothing is published at a public
+          address, and the room is deleted within an hour at most.
+        </p>
+        <p>
+          The flip side: if you need a long-lived public link, syntax
+          highlighting or file uploads, a paste site is the better tool. This
+          is text only, up to 256 KB of encrypted data per push, and nothing
+          outlives its room.
+        </p>
       </ContentSection>
 
       <ContentSection title="Use cases" icon={Lightbulb}>
@@ -183,6 +209,13 @@ export function LandingContent() {
             <li key={useCase.title} className="rounded-md border p-3">
               <h3 className="font-medium text-foreground">{useCase.title}</h3>
               <p className="mt-1">{useCase.body}</p>
+              {useCase.link && (
+                <p className="mt-1">
+                  <Link href={useCase.link.href} className={TEXT_LINK_CLASS}>
+                    {useCase.link.label}
+                  </Link>
+                </p>
+              )}
             </li>
           ))}
         </ul>
